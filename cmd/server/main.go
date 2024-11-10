@@ -7,6 +7,7 @@ import (
 
 	"github.com/adettelle/go-keeper/internal/database"
 	"github.com/adettelle/go-keeper/internal/migrator"
+	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/internal/server/api"
 )
 
@@ -21,10 +22,16 @@ func main() {
 	}
 	defer db.Close()
 
+	iCustomerREpo := repo.NewCustomerRepo(db)
+
+	userRepo := &api.UserRepo{
+		CustomerRepo: iCustomerREpo,
+	}
+
 	address := "localhost:8080"
 	fmt.Println("Starting server at address:", address)
 
-	r := api.NewRouter()
+	r := api.NewRouter(userRepo)
 
 	err = http.ListenAndServe(address, r)
 	if err != nil {
