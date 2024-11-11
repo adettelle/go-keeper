@@ -10,7 +10,7 @@ import (
 	"github.com/adettelle/go-keeper/internal/repo"
 )
 
-type UserRepo struct {
+type CustomerHandlers struct { // UserRepo
 	CustomerRepo ICustomerRepo
 }
 
@@ -24,7 +24,7 @@ type CustomerDTO struct {
 	MasterPassword string `json:"masterpassword"`
 }
 
-func (ur *UserRepo) RegisterCustomer(w http.ResponseWriter, r *http.Request) {
+func (ch *CustomerHandlers) RegisterCustomer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -47,7 +47,7 @@ func (ur *UserRepo) RegisterCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ur.CustomerRepo.AddCustomer(
+	err = ch.CustomerRepo.AddCustomer(
 		context.Background(), customer.Name, customer.Email, customer.MasterPassword)
 	if err != nil {
 		if repo.IsCustomerExistsErr(err) { // !!!!!!!!!!!!!!!!!!!!!!!!!

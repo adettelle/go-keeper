@@ -22,16 +22,16 @@ func main() {
 	}
 	defer db.Close()
 
-	iCustomerREpo := repo.NewCustomerRepo(db)
+	iCustomerRepo := repo.NewCustomerRepo(db)
 
-	userRepo := &api.UserRepo{
-		CustomerRepo: iCustomerREpo,
+	repo := &api.CustomerHandlers{
+		CustomerRepo: iCustomerRepo,
 	}
 
 	address := "localhost:8080"
 	fmt.Println("Starting server at address:", address)
 
-	r := api.NewRouter(userRepo)
+	r := api.NewRouter(repo)
 
 	err = http.ListenAndServe(address, r)
 	if err != nil {
