@@ -28,7 +28,7 @@ func NewCustomerHandlers(customerRepo ICustomerRepo, pwdRepo IPwdRepo, jwtSignKe
 }
 
 type ICustomerRepo interface {
-	AddCustomer(ctx context.Context, name, email, masterPassword string) error
+	AddCustomer(ctx context.Context, name, login, masterPassword string) error
 	GetCustomerByLogin(ctx context.Context, login string) (*repo.Customer, error)
 }
 
@@ -42,7 +42,7 @@ type IPwdRepo interface {
 
 type customerRegistrationRequestDTO struct {
 	Name           string `json:"name"`
-	Email          string `json:"email"`
+	Login          string `json:"login"`
 	MasterPassword string `json:"masterpassword"`
 }
 
@@ -66,7 +66,6 @@ type pwdUpdateRequestDTO struct {
 
 func NewPwdDTO(pwd repo.Password) *pwdCreateRequestDTO {
 	return &pwdCreateRequestDTO{
-		Password:    pwd.Password,
 		Title:       pwd.Title,
 		Description: pwd.Description,
 	}
@@ -81,8 +80,9 @@ func NewPwdListDTO(pwds []repo.Password) []*pwdCreateRequestDTO {
 	return res
 }
 
-// Login происходит по логину (email) и паролю (masterPassword)
+// Login происходит по логину и паролю (masterPassword)
 func (ch *CustomerHandlers) Login(w http.ResponseWriter, r *http.Request) {
+	log.Println("---------------------")
 	var buf bytes.Buffer
 	var auth authRequestDTO
 
@@ -100,6 +100,7 @@ func (ch *CustomerHandlers) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !VerifyUser(context.Background(), auth.Login, auth.Password, ch.CustomerRepo) {
+		log.Println("authlogin: ", auth.Login, auth.Password)
 		w.WriteHeader(http.StatusUnauthorized) // неверная пара логин/пароль
 		return
 	}
@@ -143,10 +144,10 @@ func (ch *CustomerHandlers) RegisterCustomer(w http.ResponseWriter, r *http.Requ
 	hashStringPassword := hex.EncodeToString(hashedPassword[:]) // дополнительно кодируем пароль
 
 	err = ch.CustomerRepo.AddCustomer(
-		context.Background(), customer.Name, customer.Email, hashStringPassword)
+		context.Background(), customer.Name, customer.Login, hashStringPassword)
 	if err != nil {
 		if repo.IsCustomerExistsErr(err) { // !!!!!!!!!!!!!!!!!!!!!!!!!
-			log.Printf("error %v in registering user %s", err, customer.Email)
+			log.Printf("error %v in registering user %s", err, customer.Login)
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -157,7 +158,7 @@ func (ch *CustomerHandlers) RegisterCustomer(w http.ResponseWriter, r *http.Requ
 
 	log.Println("customer: ", customer)
 
-	token, err := jwt.GenerateJwtToken([]byte(ch.JwtSignKey), customer.Email)
+	token, err := jwt.GenerateJwtToken([]byte(ch.JwtSignKey), customer.Login)
 	if err != nil {
 		log.Println("error in generating token:", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -169,9 +170,13 @@ func (ch *CustomerHandlers) RegisterCustomer(w http.ResponseWriter, r *http.Requ
 }
 
 // VerifyUser — функция, которая выполняет аутентификацию и авторизацию пользователя
-// login — email пользователя, pass — это masterpassword, permission — необходимая привилегия.
+// login — это email пользователя, pass — это masterpassword, permission — необходимая привилегия.
 // если пользователь ввел правильные данные, и у него есть необходимая привилегия — возвращаем true, иначе — false
 func VerifyUser(ctx context.Context, login string, pass string, customerRepo ICustomerRepo) bool {
+	if login == "" || pass == "" {
+		log.Println("!!!!!!!!!!!!!!!!!!")
+		return false
+	}
 	// получаем хеш пароля
 	hashedPassword := sha256.Sum256([]byte(pass))
 	hashStringPassword := hex.EncodeToString(hashedPassword[:]) // дополнительно кодируем пароль
@@ -179,7 +184,7 @@ func VerifyUser(ctx context.Context, login string, pass string, customerRepo ICu
 	// проверяем введенные данные
 	cust, err := customerRepo.GetCustomerByLogin(ctx, login)
 	if err != nil {
-		log.Printf("Error in authorization %s", cust.Email)
+		log.Printf("Error in authorization %s", cust.Login)
 		return false
 	}
 
@@ -213,6 +218,7 @@ func (ch *CustomerHandlers) AllPasswords(w http.ResponseWriter, r *http.Request)
 
 	pwds, err := ch.PwdRepo.GetAllPasswords(context.Background(), customer.Name)
 	if err != nil {
+		log.Println("error in getting passwords: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

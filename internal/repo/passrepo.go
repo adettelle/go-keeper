@@ -10,7 +10,6 @@ import (
 )
 
 type Password struct {
-	Password    string
 	Title       string
 	Description string
 }
@@ -26,14 +25,13 @@ func NewPasswordRepo(db *sql.DB) *PasswordRepo {
 }
 
 // добавлять пароль может только аутентифицированный пользователь
-// в качестве login выступает email
 func (pr *PasswordRepo) CreatePassword(
 	ctx context.Context, password, title, description string, login string) error {
 
 	// не проверяем наличие у пользователя пароля с таким title,
 	// потому что етсь unique (title, customer_id)
 	sqlSt := `insert into pass (passwrd, title, description, customer_id) 
-		values ($1, $2, $3, (select id from customer where email = $4));`
+		values ($1, $2, $3, (select id from customer where login = $4));`
 	//on conflict (title, customer_id) do update
 	//set passwrd = $1, description = $3;` // where customer_id = $5  set passwrd = $5, description = $6
 
@@ -82,7 +80,7 @@ func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
 // DeletePassword удаляет пароль с определенным названием (title) по id пользователя
 func (pr *PasswordRepo) DeletePassword(ctx context.Context, title string, login string) error {
 	sqlSt := `delete from pass 
-		where title = $1 and customer_id = (select id from customer where email = $2);`
+		where title = $1 and customer_id = (select id from customer where  = $2);`
 
 	_, err := pr.DB.ExecContext(ctx, sqlSt, title, login)
 	if err != nil {
@@ -98,7 +96,7 @@ func (pr *PasswordRepo) GetPasswordByTitle(
 	ctx context.Context, title string, login string) (string, error) {
 
 	sqlSt := `select pwd from pass 
-		where title = $1 and customer_id = (select id from customer c where email = $2);`
+		where title = $1 and customer_id = (select id from customer c where login = $2);`
 
 	row := pr.DB.QueryRowContext(ctx, sqlSt, title, login)
 
@@ -118,7 +116,7 @@ func (pr *PasswordRepo) GetPasswordByTitle(
 func (pr *PasswordRepo) GetAllPasswords(ctx context.Context, name string) ([]Password, error) {
 	pwds := make([]Password, 0)
 
-	sqlSt := `select pwd, title, description from pass 
+	sqlSt := `select title, description from pass 
 		where customer_id = (select id from customer c where name = $1);`
 
 	rows, err := pr.DB.QueryContext(ctx, sqlSt, name)
@@ -131,7 +129,7 @@ func (pr *PasswordRepo) GetAllPasswords(ctx context.Context, name string) ([]Pas
 	// пробегаем по всем записям
 	for rows.Next() {
 		var pwd Password
-		err := rows.Scan(&pwd.Password, &pwd.Title, &pwd.Description)
+		err := rows.Scan(&pwd.Title, &pwd.Description)
 		if err != nil {
 			log.Println("error: ", err)
 			return nil, err

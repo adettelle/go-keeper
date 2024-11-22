@@ -10,7 +10,7 @@ import (
 
 type Customer struct {
 	Name           string
-	Email          string
+	Login          string
 	MasterPassword string
 }
 
@@ -25,16 +25,16 @@ func NewCustomerRepo(db *sql.DB) *CustomerRepo {
 }
 
 type CustomerExistsErr struct {
-	email string
+	login string
 }
 
 func (ce *CustomerExistsErr) Error() string {
-	return fmt.Sprintf("customer %s already exists", ce.email)
+	return fmt.Sprintf("customer %s already exists", ce.login)
 }
 
-func NewCustomerExistsErr(email string) *CustomerExistsErr {
+func NewCustomerExistsErr(login string) *CustomerExistsErr {
 	return &CustomerExistsErr{
-		email: email,
+		login: login,
 	}
 }
 
@@ -44,9 +44,9 @@ func IsCustomerExistsErr(err error) bool {
 }
 
 // регистрация пользователя, надо ли проверить, что такого пользователя нет???????????????????
-func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, email, masterPassword string) error {
-	sqlCustomer := `select count(*) > 0 from customer where email = $1 limit 1;`
-	row := cr.DB.QueryRowContext(ctx, sqlCustomer, email)
+func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, login, masterPassword string) error {
+	sqlCustomer := `select count(*) > 0 from customer where login = $1 limit 1;`
+	row := cr.DB.QueryRowContext(ctx, sqlCustomer, login)
 
 	// переменная для чтения результата
 	var customerExists bool
@@ -56,12 +56,12 @@ func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, email, masterPass
 		return err
 	}
 	if customerExists {
-		return NewCustomerExistsErr(email) // пользователь уже существует
+		return NewCustomerExistsErr(login) // пользователь уже существует
 	}
 
-	sqlSt := `insert into customer (name, email, masterpassword) values ($1, $2, $3);`
+	sqlSt := `insert into customer (name, login, masterpassword) values ($1, $2, $3);`
 
-	_, err = cr.DB.ExecContext(ctx, sqlSt, name, email, masterPassword)
+	_, err = cr.DB.ExecContext(ctx, sqlSt, name, login, masterPassword)
 	if err != nil {
 		log.Println("error in registering customer:", err)
 		return err
@@ -70,15 +70,14 @@ func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, email, masterPass
 	return nil
 }
 
-// в качестве логина выступает email
 func (cr *CustomerRepo) GetCustomerByLogin(ctx context.Context, login string) (*Customer, error) {
-	sqlSt := `select name, email, masterpassword from customer where email = $1;`
+	sqlSt := `select name, login, masterpassword from customer where login = $1;`
 
 	row := cr.DB.QueryRowContext(ctx, sqlSt, login)
 
 	var customer Customer
 
-	err := row.Scan(&customer.Name, &customer.Email, &customer.MasterPassword)
+	err := row.Scan(&customer.Name, &customer.Login, &customer.MasterPassword)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // считаем, что это не ошибка, просто не нашли пользователя

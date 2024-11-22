@@ -6,7 +6,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// userLogin здесь это email
 func GenerateJwtToken(secret []byte, userLogin string) (string, error) {
 	// создаём payload
 	claims := jwt.MapClaims{
