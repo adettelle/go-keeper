@@ -9,5 +9,12 @@ services:
       - "postgres-data:/var/lib/postgresql/data"
     environment:
       - "POSTGRES_PASSWORD=password"
+  minio:
+    image: minio/minio:latest
+    command: minio server --console-address ":9001" /home/shared
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
 volumes:
   postgres-data:

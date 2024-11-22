@@ -19,5 +19,7 @@ func NewRouter(userRepo *CustomerHandlers) chi.Router { // как переиме
 	r.Delete("/api/user/delete/{title}", mware.AuthMwr(userRepo.PasswordDelete, userRepo.JwtSignKey))
 	// r.Put("/api/user/update/{title}", PasswordUpdate)    // TODO by title
 
+	r.Put("/api/user/addfile", mware.AuthMwr(userRepo.FileAdd, userRepo.JwtSignKey))
+
 	return r
 }
