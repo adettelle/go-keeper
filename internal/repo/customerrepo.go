@@ -43,7 +43,7 @@ func IsCustomerExistsErr(err error) bool {
 	return errors.As(err, &customErr)
 }
 
-// регистрация пользователя
+// регистрация пользователя, надо ли проверить, что такого пользователя нет???????????????????
 func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, email, masterPassword string) error {
 	sqlCustomer := `select count(*) > 0 from customer where email = $1 limit 1;`
 	row := cr.DB.QueryRowContext(ctx, sqlCustomer, email)
@@ -70,18 +70,20 @@ func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, email, masterPass
 	return nil
 }
 
-// func (cr *CustomerRepo) GetCustomerByEmail(ctx context.Context, email string) (*Customer, error) {
-//}
+// в качестве логина выступает email
+func (cr *CustomerRepo) GetCustomerByLogin(ctx context.Context, login string) (*Customer, error) {
+	sqlSt := `select name, email, masterpassword from customer where email = $1;`
 
-// type ICustomerRepo interface {
-// }
+	row := cr.DB.QueryRowContext(ctx, sqlSt, login)
 
-// --------
+	var customer Customer
 
-// func CreateCustomer(name, email, masterPassword string) Customer {
-// 	return Customer{Name: name, Email: email, MasterPassword: masterPassword}
-// }
-
-// func (c *CustomerRepo) AddCustomer(cust Customer) {
-// 	c.Customers = append(c.Customers, cust)
-// }
+	err := row.Scan(&customer.Name, &customer.Email, &customer.MasterPassword)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // считаем, что это не ошибка, просто не нашли пользователя
+		}
+		return nil, err
+	}
+	return &customer, nil
+}
