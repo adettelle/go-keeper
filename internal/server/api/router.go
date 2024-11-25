@@ -5,7 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouter(userRepo *CustomerHandlers) chi.Router { // как переименовать userRepo???????
+func NewRouter(userRepo *CustomerHandlers) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/api/user/register", userRepo.RegisterCustomer)
@@ -20,6 +20,8 @@ func NewRouter(userRepo *CustomerHandlers) chi.Router { // как переиме
 	// r.Put("/api/user/update/{title}", PasswordUpdate)    // TODO by title
 
 	r.Put("/api/user/addfile", mware.AuthMwr(userRepo.FileAdd, userRepo.JwtSignKey))
+	r.Get("/api/user/getfile/{id}", mware.AuthMwr(userRepo.FileGetByID, userRepo.JwtSignKey))
+	r.Get("/api/user/files", mware.AuthMwr(userRepo.AllFiles, userRepo.JwtSignKey))
 
 	return r
 }

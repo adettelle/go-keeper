@@ -15,6 +15,9 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - "minio-data:/home/shared"
 
 volumes:
   postgres-data:
+  minio-data:

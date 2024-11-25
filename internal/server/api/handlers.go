@@ -6,23 +6,37 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
+	"path/filepath"
+	"time"
 
 	"github.com/adettelle/go-keeper/internal/jwt"
 	"github.com/adettelle/go-keeper/internal/repo"
+	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
 )
 
 type CustomerHandlers struct {
 	CustomerRepo ICustomerRepo
 	PwdRepo      IPwdRepo
+	FileRepo     IFileRepo
+	MinioClient  *minio.Client
 	JwtSignKey   []byte
 }
 
-func NewCustomerHandlers(customerRepo ICustomerRepo, pwdRepo IPwdRepo, jwtSignKey []byte) *CustomerHandlers {
+func NewCustomerHandlers(
+	customerRepo ICustomerRepo,
+	pwdRepo IPwdRepo,
+	fileRepo IFileRepo,
+	minioClient *minio.Client,
+	jwtSignKey []byte) *CustomerHandlers {
 	return &CustomerHandlers{
 		CustomerRepo: customerRepo,
 		PwdRepo:      pwdRepo,
+		FileRepo:     fileRepo,
+		MinioClient:  minioClient,
 		JwtSignKey:   jwtSignKey,
 	}
 }
@@ -38,6 +52,12 @@ type IPwdRepo interface {
 	UpdatePassword(ctx context.Context, id int, password, title, description *string) error
 	DeletePassword(ctx context.Context, title string, login string) error
 	GetPasswordByTitle(ctx context.Context, title string, login string) (string, error)
+}
+
+type IFileRepo interface {
+	AddFile(ctx context.Context, fileName, title, description, cloudID string, login string) error
+	GetFileCoudIDByID(ctx context.Context, fileID, login string) (string, error)
+	GetAllFiles(ctx context.Context, name string) ([]repo.File, error)
 }
 
 type customerRegistrationRequestDTO struct {
@@ -75,6 +95,35 @@ func NewPwdListDTO(pwds []repo.Password) []*pwdCreateRequestDTO {
 	res := []*pwdCreateRequestDTO{}
 	for _, pwd := range pwds {
 		res = append(res, NewPwdDTO(pwd))
+	}
+
+	return res
+}
+
+type fileCreateRequestDTO struct {
+	FileName    string `json:"fname"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+type fileGetRequestDTO struct {
+	FileName    string `json:"fname"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+func NewFileDTO(file repo.File) *fileGetRequestDTO {
+	return &fileGetRequestDTO{
+		FileName:    file.FileName,
+		Title:       file.Title,
+		Description: file.Description,
+	}
+}
+
+func NewFileListDTO(files []repo.File) []*fileGetRequestDTO {
+	res := []*fileGetRequestDTO{}
+	for _, file := range files {
+		res = append(res, NewFileDTO(file))
 	}
 
 	return res
@@ -367,4 +416,174 @@ func (ch *CustomerHandlers) PasswordByTitle(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// Хендлер доступен только авторизованному пользователю
+func (ch *CustomerHandlers) FileAdd(w http.ResponseWriter, r *http.Request) {
+	log.Println("In FileAdd")
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	userLogin := r.Header.Get("x-user")
+
+	var buf bytes.Buffer
+	var file fileCreateRequestDTO
+
+	// читаем тело запроса
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		log.Println("error in reading body:", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := json.Unmarshal(buf.Bytes(), &file); err != nil {
+		log.Println("error in unmarshalling json:", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	cloudID := uuid.NewString() // генерируем случайную строку опр-го формата
+
+	fileNameWithoutPath := filepath.Base(file.FileName)
+
+	err = ch.FileRepo.AddFile(
+		context.Background(), fileNameWithoutPath, file.Title, file.Description, cloudID, userLogin)
+	if err != nil {
+		log.Println("error in adding password:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// TODO 3*time.Minute - задавать в config, подумать, сколько надо? это время до начала загрузки файла?
+	url, err := ch.MinioClient.PresignedPutObject(context.Background(), "test", cloudID, 3*time.Minute)
+	if err != nil {
+		log.Println("error in generating upload url:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	type addFileResponseDTO struct {
+		URL string
+	}
+
+	res := addFileResponseDTO{
+		URL: url.String(),
+	}
+	resBody, err := json.Marshal(res)
+	if err != nil {
+		log.Println("error in marshalling json:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resBody)
+
+	return
+}
+
+func (ch *CustomerHandlers) FileGetByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	userLogin := r.Header.Get("x-user")
+	fileID := r.PathValue("id")
+
+	fileCLoudID, err := ch.FileRepo.GetFileCoudIDByID(context.Background(), fileID, userLogin)
+	if err != nil {
+		log.Println("error in getting file by id:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// TODO config test bucket name
+	obj, err := ch.MinioClient.GetObject(context.Background(), "test", fileCLoudID, minio.GetObjectOptions{})
+	if err != nil {
+		log.Println("error in getting minio:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/binary")
+	w.WriteHeader(http.StatusOK)
+
+	_, err = io.Copy(w, obj)
+	if err != nil {
+		log.Println("error in copy response:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// resp, err := json.Marshal(fileCLoudID)
+	// if err != nil {
+	// 	log.Println("error in marshalling json:", err)
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// _, err = w.Write(resp)
+	// if err != nil {
+	// 	log.Println("error in writing resp:", err)
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
+
+}
+
+// Хендлер доступен только авторизованному пользователю
+func (ch *CustomerHandlers) AllFiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	userLogin := r.Header.Get("x-user")
+
+	customer, err := ch.CustomerRepo.GetCustomerByLogin(context.Background(), userLogin)
+	log.Println("user from get customer by login:", *customer)
+	if err != nil {
+		log.Println("error in getting user by login:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if customer == nil {
+		log.Println("customer == nil")
+		w.WriteHeader(http.StatusNotFound) // это значит, нет такого пользователя
+		return
+	}
+
+	files, err := ch.FileRepo.GetAllFiles(context.Background(), customer.Name)
+	if err != nil {
+		log.Println("error in getting files: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	log.Println("passwords: ", files)
+	if len(files) == 0 {
+		log.Println("len(files) == 0")
+		w.WriteHeader(http.StatusNoContent) // нет данных для ответа
+		return
+	}
+
+	resp, err := json.Marshal(NewFileListDTO(files))
+	if err != nil {
+		log.Println("error in marshalling json:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(resp)
+	if err != nil {
+		log.Println("error in writing resp:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
