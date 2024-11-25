@@ -9,44 +9,54 @@ import (
 	"github.com/adettelle/go-keeper/internal/migrator"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/internal/server/api"
+	"github.com/adettelle/go-keeper/internal/server/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 func main() {
-	dbParams := "host=localhost port=5433 user=postgres password=password dbname=praktikum-fin sslmode=disable"
+	// TODO унести все параметры в config
+	// dbParams := "host=localhost port=5433 user=postgres password=password dbname=praktikum-fin sslmode=disable"
+	// endpoint := "localhost:9000"
+	// accessKeyID := "RPClJMVJmUJyRF2PgZSK"
+	// secretAccessKey := "qJa8Bl0VHixgkDoymsJC7yEgb88nPTUQsZNLPUBM"
+	// useSSL := false // true
 
-	migrator.MustApplyMigrations(dbParams)
+	cfg, err := config.New()
+	if err != nil {
+		log.Println("error in config")
+		log.Fatal(err)
+	}
+	log.Println("config:", cfg)
 
-	db, err := database.Connect(dbParams)
+	connStr := cfg.DBConnStr()
+
+	migrator.MustApplyMigrations(connStr) // dbParams)
+
+	db, err := database.Connect(connStr) // dbParams)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
-
-	// TODO унести все параметры в config
-	endpoint := "localhost:9000"
-	accessKeyID := "RPClJMVJmUJyRF2PgZSK"
-	secretAccessKey := "qJa8Bl0VHixgkDoymsJC7yEgb88nPTUQsZNLPUBM"
-	useSSL := false // true
 
 	customerRepo := repo.NewCustomerRepo(db)
 	pwdRepo := repo.NewPasswordRepo(db)
 	fileRepo := repo.NewFileRepo(db)
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
+	minioClient, err := minio.New(cfg.MinioEndPoint, &minio.Options{ //endpoint
+		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+		Secure: cfg.UseSSL,
 	})
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	handlers := api.NewCustomerHandlers(customerRepo, pwdRepo, fileRepo, minioClient, []byte("my_secret_key"))
+	handlers := api.NewCustomerHandlers(
+		customerRepo, pwdRepo, fileRepo, minioClient, []byte(cfg.JwtSignKey), cfg)
 	// убрать в config TODO []byte("my_secret_key")
 
-	address := "localhost:8080"
+	address := cfg.Address // "localhost:8080"
 	fmt.Println("Starting server at address:", address)
 
 	r := api.NewRouter(handlers)

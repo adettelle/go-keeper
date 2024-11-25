@@ -14,6 +14,7 @@ import (
 
 	"github.com/adettelle/go-keeper/internal/jwt"
 	"github.com/adettelle/go-keeper/internal/repo"
+	"github.com/adettelle/go-keeper/internal/server/config"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 )
@@ -24,6 +25,7 @@ type CustomerHandlers struct {
 	FileRepo     IFileRepo
 	MinioClient  *minio.Client
 	JwtSignKey   []byte
+	Config       *config.Config
 }
 
 func NewCustomerHandlers(
@@ -31,13 +33,14 @@ func NewCustomerHandlers(
 	pwdRepo IPwdRepo,
 	fileRepo IFileRepo,
 	minioClient *minio.Client,
-	jwtSignKey []byte) *CustomerHandlers {
+	jwtSignKey []byte, cfg *config.Config) *CustomerHandlers {
 	return &CustomerHandlers{
 		CustomerRepo: customerRepo,
 		PwdRepo:      pwdRepo,
 		FileRepo:     fileRepo,
 		MinioClient:  minioClient,
 		JwtSignKey:   jwtSignKey,
+		Config:       cfg,
 	}
 }
 
@@ -57,7 +60,7 @@ type IPwdRepo interface {
 type IFileRepo interface {
 	AddFile(ctx context.Context, fileName, title, description, cloudID string, login string) error
 	GetFileCoudIDByID(ctx context.Context, fileID, login string) (string, error)
-	GetAllFiles(ctx context.Context, name string) ([]repo.File, error)
+	GetAllFiles(ctx context.Context, name string) ([]repo.FileToGet, error)
 }
 
 type customerRegistrationRequestDTO struct {
@@ -107,20 +110,22 @@ type fileCreateRequestDTO struct {
 }
 
 type fileGetRequestDTO struct {
-	FileName    string `json:"fname"`
+	ID          string `json:"id"`
+	FileName    string `json:"file_name"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
 
-func NewFileDTO(file repo.File) *fileGetRequestDTO {
+func NewFileDTO(file repo.FileToGet) *fileGetRequestDTO {
 	return &fileGetRequestDTO{
+		ID:          file.ID,
 		FileName:    file.FileName,
 		Title:       file.Title,
 		Description: file.Description,
 	}
 }
 
-func NewFileListDTO(files []repo.File) []*fileGetRequestDTO {
+func NewFileListDTO(files []repo.FileToGet) []*fileGetRequestDTO {
 	res := []*fileGetRequestDTO{}
 	for _, file := range files {
 		res = append(res, NewFileDTO(file))
@@ -131,7 +136,6 @@ func NewFileListDTO(files []repo.File) []*fileGetRequestDTO {
 
 // Login происходит по логину и паролю (masterPassword)
 func (ch *CustomerHandlers) Login(w http.ResponseWriter, r *http.Request) {
-	log.Println("---------------------")
 	var buf bytes.Buffer
 	var auth authRequestDTO
 
@@ -223,7 +227,6 @@ func (ch *CustomerHandlers) RegisterCustomer(w http.ResponseWriter, r *http.Requ
 // если пользователь ввел правильные данные, и у него есть необходимая привилегия — возвращаем true, иначе — false
 func VerifyUser(ctx context.Context, login string, pass string, customerRepo ICustomerRepo) bool {
 	if login == "" || pass == "" {
-		log.Println("!!!!!!!!!!!!!!!!!!")
 		return false
 	}
 	// получаем хеш пароля
@@ -293,7 +296,6 @@ func (ch *CustomerHandlers) AllPasswords(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// надо ли проверять, что такой пароль уже есть у кого-то еще????????????????
 // Хендлер доступен только авторизованному пользователю
 func (ch *CustomerHandlers) PasswordCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
@@ -331,7 +333,6 @@ func (ch *CustomerHandlers) PasswordCreate(w http.ResponseWriter, r *http.Reques
 	return
 }
 
-// где использовать userLogin ?????????????????????????
 // Хендлер доступен только авторизованному пользователю
 func (ch *CustomerHandlers) PasswordUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -447,6 +448,7 @@ func (ch *CustomerHandlers) FileAdd(w http.ResponseWriter, r *http.Request) {
 
 	cloudID := uuid.NewString() // генерируем случайную строку опр-го формата
 
+	// убрем из filename полный путь, оставив только название файла
 	fileNameWithoutPath := filepath.Base(file.FileName)
 
 	err = ch.FileRepo.AddFile(
@@ -457,7 +459,7 @@ func (ch *CustomerHandlers) FileAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO 3*time.Minute - задавать в config, подумать, сколько надо? это время до начала загрузки файла?
+	// TODO сколько надо?
 	url, err := ch.MinioClient.PresignedPutObject(context.Background(), "test", cloudID, 3*time.Minute)
 	if err != nil {
 		log.Println("error in generating upload url:", err)
@@ -502,7 +504,7 @@ func (ch *CustomerHandlers) FileGetByID(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// TODO config test bucket name
-	obj, err := ch.MinioClient.GetObject(context.Background(), "test", fileCLoudID, minio.GetObjectOptions{})
+	obj, err := ch.MinioClient.GetObject(context.Background(), ch.Config.BucketName, fileCLoudID, minio.GetObjectOptions{}) //  "test"
 	if err != nil {
 		log.Println("error in getting minio:", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -518,21 +520,6 @@ func (ch *CustomerHandlers) FileGetByID(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	// resp, err := json.Marshal(fileCLoudID)
-	// if err != nil {
-	// 	log.Println("error in marshalling json:", err)
-	// 	w.WriteHeader(http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// _, err = w.Write(resp)
-	// if err != nil {
-	// 	log.Println("error in writing resp:", err)
-	// 	w.WriteHeader(http.StatusInternalServerError)
-	// 	return
-	// }
-
 }
 
 // Хендлер доступен только авторизованному пользователю
@@ -566,7 +553,7 @@ func (ch *CustomerHandlers) AllFiles(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Println("passwords: ", files)
+	log.Println("files: ", files)
 	if len(files) == 0 {
 		log.Println("len(files) == 0")
 		w.WriteHeader(http.StatusNoContent) // нет данных для ответа

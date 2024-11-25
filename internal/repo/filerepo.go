@@ -6,7 +6,8 @@ import (
 	"log"
 )
 
-type File struct {
+type FileToGet struct {
+	ID          string
 	FileName    string
 	Title       string
 	Description string
@@ -61,10 +62,10 @@ func (pr *FileRepo) GetFileCoudIDByID(ctx context.Context, fileID, login string)
 }
 
 // GetAllPasswords получает список паролей по имени (name) пользователя
-func (pr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]File, error) {
-	files := make([]File, 0)
+func (pr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]FileToGet, error) {
+	files := make([]FileToGet, 0)
 
-	sqlSt := `select file_name, title, description from bfile  
+	sqlSt := `select id, file_name, title, description from bfile  
 		where customer_id = (select id from customer c where name = $1);`
 
 	rows, err := pr.DB.QueryContext(ctx, sqlSt, name)
@@ -76,8 +77,8 @@ func (pr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]File, error
 
 	// пробегаем по всем записям
 	for rows.Next() {
-		var file File
-		err := rows.Scan(&file.FileName, &file.Title, &file.Description)
+		var file FileToGet
+		err := rows.Scan(&file.ID, &file.FileName, &file.Title, &file.Description)
 		if err != nil {
 			log.Println("error: ", err)
 			return nil, err

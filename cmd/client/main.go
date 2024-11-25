@@ -14,12 +14,24 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-type Customer struct {
+type CustomerToReg struct {
+	Name           string `json:"name"`
+	Login          string `json:"login"`
+	MasterPassword string `json:"masterpassword"`
+}
+
+type CustomerToLogin struct {
 	Login    string `json:"login"`
 	Password string `json:"pwd"`
 }
 
 type CLI struct {
+	Register struct {
+		Name           string `help:"User name." short:"n"`
+		Login          string `help:"User login." short:"l"`
+		MasterPassword string `help:"User masterpassword." short:"p"`
+	} `cmd:"" help:"Register."`
+
 	Login struct {
 		Login     string `help:"User login." short:"l"`
 		Passwword string `help:"User password." short:"p"`
@@ -28,44 +40,67 @@ type CLI struct {
 	Passwords struct {
 	} `cmd:"" help:"List of passwords."`
 
-	File struct {
+	AddFile struct {
 		FileName    string `help:"File path." short:"p"`
 		Title       string `help:"File title." short:"t"`
 		Description string `help:"Description." short:"d"`
-		CloudID     string `help:"CloudID." short:"c"` // TODO убрать
 	} `cmd:"" help:"File to add."`
 
 	GetFile struct {
 		ID string `help:"File id." short:"i"`
 	} `cmd:"" help:"File to get."`
+
+	Files struct {
+	} `cmd:"" help:"List of files added."`
 }
 
-// go run ./cmd/client login -l 111@121212 -p 1234
-// go run ./cmd/client passwords
-// go run ./cmd/client file -p './README.md' -t readme -d documentation -c 111
-// go run ./cmd/client file -p './screenshot1.png' -t screenshot1 -d png -c 111
-// go run ./cmd/client get-file -i 30 > newfile.sql
-// TODO listfiles
 func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli)
 
 	switch ctx.Command() {
+	case "register":
+		register(cli.Register.Name, cli.Register.Login, cli.Register.MasterPassword)
 	case "login":
 		login(cli.Login.Login, cli.Login.Passwword)
 	case "passwords":
 		allpass()
-	case "file":
-		log.Println("cli.File", cli.File)
-		addFile(cli.File.FileName, cli.File.Title, cli.File.Description, cli.File.CloudID)
+	case "add-file":
+		log.Println("cli.File", cli.AddFile)
+		addFile(cli.AddFile.FileName, cli.AddFile.Title, cli.AddFile.Description)
 	case "get-file":
 		log.Println("cli.GetFile", cli.GetFile)
 		getFile(cli.GetFile.ID)
+	case "files":
+		allFiles()
 	}
+
+}
+
+func register(name, login, masterPassword string) {
+	customer := CustomerToReg{
+		Name:           name,
+		Login:          login,
+		MasterPassword: masterPassword,
+	}
+
+	err := requests.
+		URL("/api/user/register").
+		CheckStatus(http.StatusOK).
+		Host("localhost:8080").
+		Scheme("http").
+		Method(http.MethodPost).
+		BodyJSON(&customer).
+		Fetch(context.Background())
+
+	if err != nil {
+		fmt.Println("could not register: ", err)
+	}
+	log.Println("You've been registered.")
 }
 
 func login(login, password string) {
-	customer := Customer{
+	customer := CustomerToLogin{
 		Login:    login,
 		Password: password,
 	}
@@ -152,19 +187,66 @@ func allpass() {
 	}
 }
 
+type FileToGetAll struct {
+	ID          string `json:"id"`
+	FileName    string `json:"file_name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+func allFiles() {
+	fileBearerName := "./headers.txt"
+	file, err := os.OpenFile(fileBearerName, os.O_RDONLY, 0444)
+	if err != nil {
+		log.Println("unable to read file: ", err)
+		log.Fatal(err)
+	}
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("data: ", string(data))
+
+	var files []FileToGetAll
+
+	err = requests.
+		URL("/api/user/files").
+		Host("localhost:8080").
+		Scheme("http").
+		Header("Authorization", string(data)).
+		ToJSON(&files).
+		Method(http.MethodGet).
+		Fetch(context.Background())
+
+	if err != nil {
+		fmt.Println("could not get files: ", err)
+	} else {
+		fmt.Println("pass OK")
+
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
+		t.AppendHeader(table.Row{"ID", "File Name", "Title", "Description"})
+
+		for _, file := range files {
+			t.AppendRow([]interface{}{file.ID, file.FileName, file.Title, file.Description})
+		}
+		t.Render()
+	}
+}
+
 type File struct {
 	FileName    string `json:"fname"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	CloudID     string `json:"cloudid"` // TODO убрать
 }
 
-func addFile(fileName, title, description, cloudID string) {
+func addFile(fileName, title, description string) {
 	fileToAdd := File{
 		FileName:    fileName,
 		Title:       title,
 		Description: description,
-		CloudID:     cloudID, // TODO убрать
 	}
 
 	fileBearerName := "./headers.txt"
@@ -281,10 +363,3 @@ func uploadFile(filePath string, url string) error {
 	_, err = client.Do(request)
 	return err
 }
-
-// TODO сделать config в сервере на все строки!!!!!!!!!!!!!!
-// TODO сделать ручку GetFile по id, для этого сделать ListFiles - пока без этого можно
-
-// TODO убрать из filename в таблицу полный путь, оставить только название
-// TODO почему request upload не сработал?
-//

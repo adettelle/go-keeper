@@ -32,8 +32,6 @@ func (pr *PasswordRepo) CreatePassword(
 	// потому что етсь unique (title, customer_id)
 	sqlSt := `insert into pass (passwrd, title, description, customer_id) 
 		values ($1, $2, $3, (select id from customer where login = $4));`
-	//on conflict (title, customer_id) do update
-	//set passwrd = $1, description = $3;` // where customer_id = $5  set passwrd = $5, description = $6
 
 	_, err := pr.DB.ExecContext(ctx, sqlSt, password, title, description, login)
 	if err != nil {
@@ -44,7 +42,6 @@ func (pr *PasswordRepo) CreatePassword(
 	return nil
 }
 
-// а если такого пользователя нет???????????????
 // UpdatePassword меняет поля (pwd, title, description) по id пароля
 // если в json не передать поле, то оно не измениться
 // если передать пустую строку "" - то поле станет пустым
@@ -76,7 +73,6 @@ func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
 	return nil
 }
 
-// надо ли что-то делать, если такого пароля нет???????????????
 // DeletePassword удаляет пароль с определенным названием (title) по id пользователя
 func (pr *PasswordRepo) DeletePassword(ctx context.Context, title string, login string) error {
 	sqlSt := `delete from pass 
