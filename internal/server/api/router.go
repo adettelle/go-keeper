@@ -21,5 +21,9 @@ func NewRouter(userRepo *CustomerHandlers) chi.Router {
 	r.Get("/api/user/getfile/{id}", mware.AuthMwr(userRepo.FileGetByID, userRepo.JwtSignKey))
 	r.Get("/api/user/files", mware.AuthMwr(userRepo.AllFiles, userRepo.JwtSignKey))
 
+	r.Put("/api/user/addcard", mware.AuthMwr(userRepo.CardAdd, userRepo.JwtSignKey))
+	r.Get("/api/user/cards", mware.AuthMwr(userRepo.AllCards, userRepo.JwtSignKey))
+	// r.Get("/api/user/card/{id}", mware.AuthMwr(userRepo.CardGetByID, userRepo.JwtSignKey))
+
 	return r
 }

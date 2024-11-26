@@ -30,7 +30,7 @@ func (pr *PasswordRepo) CreatePassword(
 
 	// не проверяем наличие у пользователя пароля с таким title,
 	// потому что етсь unique (title, customer_id)
-	sqlSt := `insert into pass (passwrd, title, description, customer_id) 
+	sqlSt := `insert into pass (pwd, title, description, customer_id) 
 		values ($1, $2, $3, (select id from customer where login = $4));`
 
 	_, err := pr.DB.ExecContext(ctx, sqlSt, password, title, description, login)

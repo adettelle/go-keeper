@@ -61,7 +61,7 @@ func (pr *FileRepo) GetFileCoudIDByID(ctx context.Context, fileID, login string)
 	return *fileCloudID, nil
 }
 
-// GetAllPasswords получает список паролей по имени (name) пользователя
+// GetAllFiles получает список файлов по имени (name) пользователя
 func (pr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]FileToGet, error) {
 	files := make([]FileToGet, 0)
 

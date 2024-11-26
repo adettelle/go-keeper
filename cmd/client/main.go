@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log"
@@ -40,6 +42,12 @@ type CLI struct {
 	Passwords struct {
 	} `cmd:"" help:"List of passwords."`
 
+	AddPassword struct {
+		Passwword   string `help:"User password." short:"p"`
+		Title       string `help:"Password title." short:"t"`
+		Description string `help:"Description." short:"d"`
+	} `cmd:"" help:"Password to add."`
+
 	AddFile struct {
 		FileName    string `help:"File path." short:"p"`
 		Title       string `help:"File title." short:"t"`
@@ -55,29 +63,53 @@ type CLI struct {
 }
 
 func main() {
+	caCert, err := os.ReadFile("./keys/server_cert.pem") //  config.ServerCert
+	if err != nil {
+		fmt.Printf("error in reading certificate: %v", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// "./keys/client_cert.pem", "./keys/client_privatekey.pem"
+	cert, err := tls.LoadX509KeyPair("./keys/client_cert.pem", "./keys/client_privatekey.pem") // config.ClientCert, config.CryptoKey
+	if err != nil {
+		fmt.Printf("error in loading key pair: %v", err)
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:      caCertPool,
+			Certificates: []tls.Certificate{cert},
+		},
+	}
+
+	// x := NewHTTPSender(client, fmt.Sprintf("https://%s/api/user/files", "localhost:8080"), "my_secret_key") // config.Address, config.Key
+
 	var cli CLI
 	ctx := kong.Parse(&cli)
 
 	switch ctx.Command() {
 	case "register":
-		register(cli.Register.Name, cli.Register.Login, cli.Register.MasterPassword)
+		register(cli.Register.Name, cli.Register.Login, cli.Register.MasterPassword, transport)
 	case "login":
-		login(cli.Login.Login, cli.Login.Passwword)
+		login(cli.Login.Login, cli.Login.Passwword, transport)
 	case "passwords":
-		allpass()
+		allpass(transport)
+	case "add-password":
+		addPassword(cli.AddPassword.Passwword, cli.AddPassword.Title, cli.AddPassword.Description, transport)
 	case "add-file":
 		log.Println("cli.File", cli.AddFile)
-		addFile(cli.AddFile.FileName, cli.AddFile.Title, cli.AddFile.Description)
+		addFile(cli.AddFile.FileName, cli.AddFile.Title, cli.AddFile.Description, transport)
 	case "get-file":
 		log.Println("cli.GetFile", cli.GetFile)
-		getFile(cli.GetFile.ID)
+		getFile(cli.GetFile.ID, transport)
 	case "files":
-		allFiles()
+		allFiles(transport)
 	}
 
 }
 
-func register(name, login, masterPassword string) {
+func register(name, login, masterPassword string, transport *http.Transport) {
 	customer := CustomerToReg{
 		Name:           name,
 		Login:          login,
@@ -88,7 +120,8 @@ func register(name, login, masterPassword string) {
 		URL("/api/user/register").
 		CheckStatus(http.StatusOK).
 		Host("localhost:8080").
-		Scheme("http").
+		Scheme("https").
+		Transport(transport).
 		Method(http.MethodPost).
 		BodyJSON(&customer).
 		Fetch(context.Background())
@@ -99,7 +132,7 @@ func register(name, login, masterPassword string) {
 	log.Println("You've been registered.")
 }
 
-func login(login, password string) {
+func login(login, password string, transport *http.Transport) {
 	customer := CustomerToLogin{
 		Login:    login,
 		Password: password,
@@ -112,7 +145,8 @@ func login(login, password string) {
 		CopyHeaders(headers).
 		CheckStatus(http.StatusOK).
 		Host("localhost:8080").
-		Scheme("http").
+		Scheme("https").
+		Transport(transport).
 		BodyJSON(&customer).
 		Fetch(context.Background())
 
@@ -145,7 +179,7 @@ type Password struct {
 	Description string `json:"description"`
 }
 
-func allpass() {
+func allpass(transport *http.Transport) {
 	fileBearerName := "./headers.txt"
 	file, err := os.OpenFile(fileBearerName, os.O_RDONLY, 0444)
 	if err != nil {
@@ -165,7 +199,8 @@ func allpass() {
 	err = requests.
 		URL("/api/user/passwords").
 		Host("localhost:8080").
-		Scheme("http").
+		Scheme("https").
+		Transport(transport).
 		Header("Authorization", string(data)).
 		ToJSON(&pwds).
 		Method(http.MethodGet).
@@ -194,7 +229,7 @@ type FileToGetAll struct {
 	Description string `json:"description"`
 }
 
-func allFiles() {
+func allFiles(transport *http.Transport) {
 	fileBearerName := "./headers.txt"
 	file, err := os.OpenFile(fileBearerName, os.O_RDONLY, 0444)
 	if err != nil {
@@ -214,7 +249,8 @@ func allFiles() {
 	err = requests.
 		URL("/api/user/files").
 		Host("localhost:8080").
-		Scheme("http").
+		Scheme("https").
+		Transport(transport).
 		Header("Authorization", string(data)).
 		ToJSON(&files).
 		Method(http.MethodGet).
@@ -236,13 +272,81 @@ func allFiles() {
 	}
 }
 
+type Pwd struct {
+	Password    string `json:"fname"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+func addPassword(password, title, description string, transport *http.Transport) {
+	pwdToAdd := Pwd{
+		Password:    password,
+		Title:       title,
+		Description: description,
+	}
+
+	fileBearerName := "./headers.txt"
+	fileToWriteBearer, err := os.OpenFile(fileBearerName, os.O_RDONLY, 0444)
+	if err != nil {
+		log.Println("unable to read file: ", err)
+		log.Fatal(err)
+	}
+
+	data, err := io.ReadAll(fileToWriteBearer)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("data: ", string(data))
+
+	// type presignURLResponse struct {
+	// 	URL string
+	// }
+
+	// var res presignURLResponse
+
+	err = requests.
+		URL("/api/user/password").
+		Host("localhost:8080").
+		Scheme("https").
+		Header("Authorization", string(data)).
+		Transport(transport).
+		BodyJSON(&pwdToAdd).
+		Method(http.MethodPut).
+		Fetch(context.Background())
+
+	if err != nil {
+		fmt.Println("could not connect to localhost:8080/api/user/password: ", err)
+		return
+	} else {
+		fmt.Println("password add OK")
+
+		// info, err := os.Stat(fileName)
+		// if err != nil {
+		// 	log.Println(err)
+		// 	return
+		// } else {
+		// 	log.Println(strconv.Itoa(int(info.Size())))
+		// }
+
+		// err = uploadFile(fileName, res.URL)
+		// if err != nil {
+		// 	log.Println(err)
+		// 	return
+		// } else {
+		// 	log.Printf("File %s uploaded", fileName)
+		// }
+	}
+
+}
+
 type File struct {
 	FileName    string `json:"fname"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
 
-func addFile(fileName, title, description string) {
+func addFile(fileName, title, description string, transport *http.Transport) {
 	fileToAdd := File{
 		FileName:    fileName,
 		Title:       title,
@@ -272,8 +376,9 @@ func addFile(fileName, title, description string) {
 	err = requests.
 		URL("/api/user/addfile").
 		Host("localhost:8080").
-		Scheme("http").
+		Scheme("https").
 		Header("Authorization", string(data)).
+		Transport(transport).
 		BodyJSON(&fileToAdd).
 		ToJSON(&res).
 		Method(http.MethodPut).
@@ -309,7 +414,7 @@ type FileToGet struct {
 	ID string `json:"id"`
 }
 
-func getFile(id string) error {
+func getFile(id string, transport *http.Transport) error {
 	fileToGet := FileToGet{
 		ID: id,
 	}
@@ -329,8 +434,9 @@ func getFile(id string) error {
 	err = requests.
 		URL("/api/user/getfile/"+fileToGet.ID).
 		Host("localhost:8080").
-		Scheme("http").
+		Scheme("https").
 		Header("Authorization", string(data)).
+		Transport(transport).
 		Method(http.MethodGet).
 		ToWriter(os.Stdout).
 		Fetch(context.Background())

@@ -10,6 +10,7 @@ create table pass
     title varchar(255) not null,
     description varchar(1000) not null,
     customer_id integer,
+    foreign key (customer_id) references customer (id),
     unique (title, customer_id));
 
 create table bfile
@@ -19,4 +20,22 @@ create table bfile
     description varchar(1000),
     cloud_id varchar(255) not null,
     customer_id integer,
+    foreign key (customer_id) references customer (id),
     unique (title, customer_id));
+
+create table card 
+    (id serial primary key,
+    num varchar(16) not null,
+    expire varchar(4) not null,
+    customer_id integer,
+    description varchar(1000),
+    cvc varchar(4),
+    foreign key (customer_id) references customer (id),
+    unique(num, customer_id));
+
+create table jwttoken 
+    (id serial primary key,
+    customer_id integer,
+    token varchar(255),
+    is_valid boolean,
+    foreign key (customer_id) references customer (id));

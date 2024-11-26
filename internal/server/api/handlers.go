@@ -15,34 +15,10 @@ import (
 	"github.com/adettelle/go-keeper/internal/jwt"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/internal/server/config"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 )
-
-type CustomerHandlers struct {
-	CustomerRepo ICustomerRepo
-	PwdRepo      IPwdRepo
-	FileRepo     IFileRepo
-	MinioClient  *minio.Client
-	JwtSignKey   []byte
-	Config       *config.Config
-}
-
-func NewCustomerHandlers(
-	customerRepo ICustomerRepo,
-	pwdRepo IPwdRepo,
-	fileRepo IFileRepo,
-	minioClient *minio.Client,
-	jwtSignKey []byte, cfg *config.Config) *CustomerHandlers {
-	return &CustomerHandlers{
-		CustomerRepo: customerRepo,
-		PwdRepo:      pwdRepo,
-		FileRepo:     fileRepo,
-		MinioClient:  minioClient,
-		JwtSignKey:   jwtSignKey,
-		Config:       cfg,
-	}
-}
 
 type ICustomerRepo interface {
 	AddCustomer(ctx context.Context, name, login, masterPassword string) error
@@ -63,9 +39,46 @@ type IFileRepo interface {
 	GetAllFiles(ctx context.Context, name string) ([]repo.FileToGet, error)
 }
 
+type ICardRepo interface {
+	AddCard(ctx context.Context, cardNum, expire, description, cvc string, login string) error
+	GetCardByID(ctx context.Context, cardID, login string) (repo.CardGetByID, error)
+	GetAllCards(ctx context.Context, login string) ([]repo.CardToGet, error)
+}
+
+// use a single instance of Validate, it caches struct info
+var validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
+
+type CustomerHandlers struct {
+	CustomerRepo ICustomerRepo
+	PwdRepo      IPwdRepo
+	FileRepo     IFileRepo
+	CardRepo     ICardRepo
+	MinioClient  *minio.Client
+	JwtSignKey   []byte
+	Config       *config.Config
+}
+
+func NewCustomerHandlers(
+	customerRepo ICustomerRepo,
+	pwdRepo IPwdRepo,
+	fileRepo IFileRepo,
+	cardRepo ICardRepo,
+	minioClient *minio.Client,
+	jwtSignKey []byte, cfg *config.Config) *CustomerHandlers {
+	return &CustomerHandlers{
+		CustomerRepo: customerRepo,
+		PwdRepo:      pwdRepo,
+		FileRepo:     fileRepo,
+		CardRepo:     cardRepo,
+		MinioClient:  minioClient,
+		JwtSignKey:   jwtSignKey,
+		Config:       cfg,
+	}
+}
+
 type customerRegistrationRequestDTO struct {
 	Name           string `json:"name"`
-	Login          string `json:"login"`
+	Login          string `json:"login" validate:"required,email"`
 	MasterPassword string `json:"masterpassword"`
 }
 
@@ -80,13 +93,6 @@ type pwdCreateRequestDTO struct {
 	Description string `json:"description"`
 }
 
-type pwdUpdateRequestDTO struct {
-	ID          int     `json:"id"`
-	Password    *string `json:"pwd"`
-	Title       *string `json:"title"`
-	Description *string `json:"description"` // для ссылки значение по умолчанию - nil
-}
-
 func NewPwdDTO(pwd repo.Password) *pwdCreateRequestDTO {
 	return &pwdCreateRequestDTO{
 		Title:       pwd.Title,
@@ -99,8 +105,14 @@ func NewPwdListDTO(pwds []repo.Password) []*pwdCreateRequestDTO {
 	for _, pwd := range pwds {
 		res = append(res, NewPwdDTO(pwd))
 	}
-
 	return res
+}
+
+type pwdUpdateRequestDTO struct {
+	ID          int     `json:"id"`
+	Password    *string `json:"pwd"`
+	Title       *string `json:"title"`
+	Description *string `json:"description"` // для ссылки значение по умолчанию - nil
 }
 
 type fileCreateRequestDTO struct {
@@ -130,7 +142,39 @@ func NewFileListDTO(files []repo.FileToGet) []*fileGetRequestDTO {
 	for _, file := range files {
 		res = append(res, NewFileDTO(file))
 	}
+	return res
+}
 
+type cardCreateRequestDTO struct {
+	Num         string `json:"num" validate:"required,credit_card"`
+	Expire      string `json:"expire" validate:"required,numeric,len=4"`
+	Description string `json:"description"`
+	Cvc         string `json:"cvc" validate:"required,numeric,len=3"`
+}
+
+type cardGetRequestDTO struct {
+	ID          string `json:"id"`
+	Num         string `json:"num"`
+	Expire      string `json:"expire"`
+	Description string `json:"description"`
+	Cvc         string `json:"cvc"`
+}
+
+func NewCardDTO(card repo.CardToGet) *cardGetRequestDTO {
+	return &cardGetRequestDTO{
+		ID:          card.ID,
+		Num:         card.Num,
+		Expire:      card.Expire,
+		Description: card.Description,
+		Cvc:         card.Cvc,
+	}
+}
+
+func NewCardListDTO(cards []repo.CardToGet) []*cardGetRequestDTO {
+	res := []*cardGetRequestDTO{}
+	for _, card := range cards {
+		res = append(res, NewCardDTO(card))
+	}
 	return res
 }
 
@@ -275,11 +319,6 @@ func (ch *CustomerHandlers) AllPasswords(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	log.Println("passwords: ", pwds)
-	if len(pwds) == 0 {
-		log.Println("len(passwords) == 0")
-		w.WriteHeader(http.StatusNoContent) // нет данных для ответа
-		return
-	}
 
 	resp, err := json.Marshal(NewPwdListDTO(pwds))
 	if err != nil {
@@ -561,6 +600,118 @@ func (ch *CustomerHandlers) AllFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := json.Marshal(NewFileListDTO(files))
+	if err != nil {
+		log.Println("error in marshalling json:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(resp)
+	if err != nil {
+		log.Println("error in writing resp:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+// Хендлер доступен только авторизованному пользователю
+func (ch *CustomerHandlers) CardAdd(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	userLogin := r.Header.Get("x-user")
+
+	var buf bytes.Buffer
+	var card cardCreateRequestDTO
+
+	// читаем тело запроса
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		log.Println("error in reading body:", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := json.Unmarshal(buf.Bytes(), &card); err != nil {
+		log.Println("error in unmarshalling json:", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = validate.Struct(card)
+	if err != nil {
+		log.Println("error in validating:", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	// if !luhn.CheckLuhn(card.Num) {
+	// 	w.WriteHeader(http.StatusUnprocessableEntity) // неверный номер карты 422
+	// 	return
+	// }
+
+	err = ch.CardRepo.AddCard(
+		context.Background(), card.Num, card.Expire, card.Description, card.Cvc, userLogin)
+	if err != nil {
+		log.Println("error in adding card:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// // TODO сколько надо?
+	// url, err := ch.MinioClient.PresignedPutObject(context.Background(), "test", cloudID, 3*time.Minute)
+	// if err != nil {
+	// 	log.Println("error in generating upload url:", err)
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// type addFileResponseDTO struct {
+	// 	URL string
+	// }
+
+	// res := addFileResponseDTO{
+	// 	URL: url.String(),
+	// }
+	// resBody, err := json.Marshal(res)
+	// if err != nil {
+	// 	log.Println("error in marshalling json:", err)
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
+	// w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+
+	return
+}
+
+// Хендлер доступен только авторизованному пользователю
+func (ch *CustomerHandlers) AllCards(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	userLogin := r.Header.Get("x-user") // w.Header().Get("x-user")
+	log.Println("!!!!!!!!!!!!!!!", userLogin)
+	cards, err := ch.CardRepo.GetAllCards(context.Background(), userLogin)
+	if err != nil {
+		log.Println("error in getting card by login:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	log.Println("cards in handler:", cards)
+	if len(cards) == 0 {
+		log.Println("len(cards) == 0")
+		w.WriteHeader(http.StatusNoContent) // нет данных для ответа
+		return
+	}
+
+	resp, err := json.Marshal(NewCardListDTO(cards))
 	if err != nil {
 		log.Println("error in marshalling json:", err)
 		w.WriteHeader(http.StatusInternalServerError)

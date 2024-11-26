@@ -42,6 +42,7 @@ func main() {
 	customerRepo := repo.NewCustomerRepo(db)
 	pwdRepo := repo.NewPasswordRepo(db)
 	fileRepo := repo.NewFileRepo(db)
+	cardRepo := repo.NewCardRepo(db)
 
 	// Initialize minio client object.
 	minioClient, err := minio.New(cfg.MinioEndPoint, &minio.Options{ //endpoint
@@ -53,7 +54,7 @@ func main() {
 	}
 
 	handlers := api.NewCustomerHandlers(
-		customerRepo, pwdRepo, fileRepo, minioClient, []byte(cfg.JwtSignKey), cfg)
+		customerRepo, pwdRepo, fileRepo, cardRepo, minioClient, []byte(cfg.JwtSignKey), cfg)
 	// убрать в config TODO []byte("my_secret_key")
 
 	address := cfg.Address // "localhost:8080"
@@ -61,8 +62,21 @@ func main() {
 
 	r := api.NewRouter(handlers)
 
-	err = http.ListenAndServe(address, r)
-	if err != nil {
+	// err = http.ListenAndServe(address, r)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// "./cmd/server/keys/cert.pem", "./cmd/server/keys/localhost.key"
+	// "./keys/server_cert.pem", "./keys/server_privatekey.pem"
+
+	srv := &http.Server{
+		Addr:    address,
+		Handler: r,
+	}
+
+	err = srv.ListenAndServeTLS("./keys/server_cert.pem", "./keys/server_privatekey.pem")
+	if err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }
