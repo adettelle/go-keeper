@@ -24,13 +24,13 @@ func NewFileRepo(db *sql.DB) *FileRepo {
 }
 
 // добавлять файл может только аутентифицированный пользователь
-func (pr *FileRepo) AddFile(
+func (fr *FileRepo) AddFile(
 	ctx context.Context, fileName, title, description, cloudID string, login string) error {
 
 	sqlSt := `insert into bfile (file_name, title, description, cloud_id, customer_id) 
 		values ($1, $2, $3, $4, (select id from customer where login = $5));`
 
-	_, err := pr.DB.ExecContext(ctx, sqlSt, fileName, title, description, cloudID, login)
+	_, err := fr.DB.ExecContext(ctx, sqlSt, fileName, title, description, cloudID, login)
 	if err != nil {
 		log.Println("error in adding file:", err)
 		return err
@@ -40,12 +40,12 @@ func (pr *FileRepo) AddFile(
 }
 
 // получать файл может только аутентифицированный пользователь
-func (pr *FileRepo) GetFileCoudIDByID(ctx context.Context, fileID, login string) (string, error) {
+func (fr *FileRepo) GetFileCoudIDByID(ctx context.Context, fileID, login string) (string, error) {
 
 	sqlSt := `select cloud_id from bfile 
 		where id = $1 and customer_id = (select id from customer c where login = $2);`
 
-	row := pr.DB.QueryRowContext(ctx, sqlSt, fileID, login)
+	row := fr.DB.QueryRowContext(ctx, sqlSt, fileID, login)
 
 	var fileCloudID *string
 
@@ -62,13 +62,13 @@ func (pr *FileRepo) GetFileCoudIDByID(ctx context.Context, fileID, login string)
 }
 
 // GetAllFiles получает список файлов по имени (name) пользователя
-func (pr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]FileToGet, error) {
+func (fr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]FileToGet, error) {
 	files := make([]FileToGet, 0)
 
 	sqlSt := `select id, file_name, title, description from bfile  
 		where customer_id = (select id from customer c where name = $1);`
 
-	rows, err := pr.DB.QueryContext(ctx, sqlSt, name)
+	rows, err := fr.DB.QueryContext(ctx, sqlSt, name)
 	if err != nil || rows.Err() != nil {
 		log.Println("error in getting files:", err)
 		return nil, err
@@ -87,4 +87,18 @@ func (pr *FileRepo) GetAllFiles(ctx context.Context, name string) ([]FileToGet, 
 	}
 
 	return files, nil
+}
+
+func (fr *FileRepo) DeleteFileByCloudID(ctx context.Context, cloudID string, login string) error {
+	sqlSt := `delete from bfile 
+		where cloud_id = $1 and customer_id = (select id from customer where login = $2);`
+
+	_, err := fr.DB.ExecContext(ctx, sqlSt, cloudID, login)
+	if err != nil {
+		log.Println("error in deleting file:", err)
+		return err
+	}
+
+	log.Println("File deleted")
+	return nil
 }

@@ -15,13 +15,6 @@ import (
 )
 
 func main() {
-	// TODO унести все параметры в config
-	// dbParams := "host=localhost port=5433 user=postgres password=password dbname=praktikum-fin sslmode=disable"
-	// endpoint := "localhost:9000"
-	// accessKeyID := "RPClJMVJmUJyRF2PgZSK"
-	// secretAccessKey := "qJa8Bl0VHixgkDoymsJC7yEgb88nPTUQsZNLPUBM"
-	// useSSL := false // true
-
 	cfg, err := config.New()
 	if err != nil {
 		log.Println("error in config")
@@ -43,9 +36,10 @@ func main() {
 	pwdRepo := repo.NewPasswordRepo(db)
 	fileRepo := repo.NewFileRepo(db)
 	cardRepo := repo.NewCardRepo(db)
+	jwtRepo := repo.NewJwtRepo(db)
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(cfg.MinioEndPoint, &minio.Options{ //endpoint
+	minioClient, err := minio.New(cfg.MinioEndPoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
 		Secure: cfg.UseSSL,
 	})
@@ -54,21 +48,12 @@ func main() {
 	}
 
 	handlers := api.NewCustomerHandlers(
-		customerRepo, pwdRepo, fileRepo, cardRepo, minioClient, []byte(cfg.JwtSignKey), cfg)
-	// убрать в config TODO []byte("my_secret_key")
+		customerRepo, pwdRepo, fileRepo, cardRepo, jwtRepo, minioClient, []byte(cfg.JwtSignKey), cfg)
 
 	address := cfg.Address // "localhost:8080"
 	fmt.Println("Starting server at address:", address)
 
-	r := api.NewRouter(handlers)
-
-	// err = http.ListenAndServe(address, r)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// "./cmd/server/keys/cert.pem", "./cmd/server/keys/localhost.key"
-	// "./keys/server_cert.pem", "./keys/server_privatekey.pem"
+	r := api.NewRouter(handlers, jwtRepo)
 
 	srv := &http.Server{
 		Addr:    address,

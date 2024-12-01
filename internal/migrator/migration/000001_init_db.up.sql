@@ -26,10 +26,11 @@ create table bfile
 create table card 
     (id serial primary key,
     num varchar(16) not null,
-    expire varchar(4) not null,
+    expires_at varchar(4) not null,
     customer_id integer,
+    cvc varchar(3),
+    title varchar(255) not null,
     description varchar(1000),
-    cvc varchar(4),
     foreign key (customer_id) references customer (id),
     unique(num, customer_id));
 
@@ -39,3 +40,5 @@ create table jwttoken
     token varchar(255),
     is_valid boolean,
     foreign key (customer_id) references customer (id));
+
+CREATE UNIQUE INDEX token_idx ON jwttoken (token);

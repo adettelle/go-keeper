@@ -9,11 +9,6 @@ import (
 	"github.com/doug-martin/goqu/v9"
 )
 
-type Password struct {
-	Title       string
-	Description string
-}
-
 type PasswordRepo struct {
 	DB *sql.DB
 }
@@ -46,7 +41,7 @@ func (pr *PasswordRepo) CreatePassword(
 // если в json не передать поле, то оно не измениться
 // если передать пустую строку "" - то поле станет пустым
 func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
-	id int, password, title, description *string) error {
+	id int, password, title, description *string, userID int) error {
 
 	type pwd struct {
 		// TODO эти поля в таблице не должны быть пустыми! not empty?
@@ -60,7 +55,7 @@ func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
 		Password:    password,
 		Title:       title,
 		Description: description,
-	}).Where(goqu.C("id").Eq(id)).ToSQL()
+	}).Where(goqu.C("id").Eq(id)).Where(goqu.C("customer_id").Eq(userID)).ToSQL() // TODO CHECK!!!!!!!
 
 	fmt.Println(sqlSt)
 
@@ -76,7 +71,7 @@ func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
 // DeletePassword удаляет пароль с определенным названием (title) по id пользователя
 func (pr *PasswordRepo) DeletePassword(ctx context.Context, title string, login string) error {
 	sqlSt := `delete from pass 
-		where title = $1 and customer_id = (select id from customer where  = $2);`
+		where title = $1 and customer_id = (select id from customer where login = $2);`
 
 	_, err := pr.DB.ExecContext(ctx, sqlSt, title, login)
 	if err != nil {
@@ -91,6 +86,7 @@ func (pr *PasswordRepo) DeletePassword(ctx context.Context, title string, login 
 func (pr *PasswordRepo) GetPasswordByTitle(
 	ctx context.Context, title string, login string) (string, error) {
 
+	log.Println("getting password for login", login, title)
 	sqlSt := `select pwd from pass 
 		where title = $1 and customer_id = (select id from customer c where login = $2);`
 
@@ -105,17 +101,23 @@ func (pr *PasswordRepo) GetPasswordByTitle(
 			return "", nil
 		}
 	}
+	fmt.Println("pass:", *pwd)
 	return *pwd, nil
 }
 
+type Password struct {
+	Title       string
+	Description string
+}
+
 // GetAllPasswords получает список паролей по имени (name) пользователя
-func (pr *PasswordRepo) GetAllPasswords(ctx context.Context, name string) ([]Password, error) {
+func (pr *PasswordRepo) GetAllPasswords(ctx context.Context, login string) ([]Password, error) {
 	pwds := make([]Password, 0)
 
 	sqlSt := `select title, description from pass 
-		where customer_id = (select id from customer c where name = $1);`
+		where customer_id = (select id from customer c where login = $1);`
 
-	rows, err := pr.DB.QueryContext(ctx, sqlSt, name)
+	rows, err := pr.DB.QueryContext(ctx, sqlSt, login)
 	if err != nil || rows.Err() != nil {
 		log.Println("error in getting passwords:", err)
 		return nil, err

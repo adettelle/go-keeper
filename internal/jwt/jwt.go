@@ -2,17 +2,36 @@ package jwt
 
 import (
 	"log"
+	"reflect"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func GenerateJwtToken(secret []byte, userLogin string) (string, error) {
+type Claims struct {
+	jwt.RegisteredClaims
+	Login  string
+	UserID int
+}
+
+const TOKEN_EXP = time.Hour * 24
+
+func GenerateJwtToken(secret []byte, userLogin string, userID int) (string, error) {
 	// создаём payload
-	claims := jwt.MapClaims{
-		"login": userLogin,
-	}
+	// claims := jwt.MapClaims{
+	// 	"login":       userLogin,
+	// 	"customer_id": userID,
+	// }
 	// создаём jwt и указываем payload
-	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			// когда создан токен
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
+		},
+		// собственное утверждение
+		Login:  userLogin,
+		UserID: userID,
+	})
 
 	// получаем подписанный токен
 	signedToken, err := jwtToken.SignedString(secret)
@@ -20,7 +39,7 @@ func GenerateJwtToken(secret []byte, userLogin string) (string, error) {
 		log.Printf("failed to sign jwt: %s\n", err)
 		return "", err
 	}
-	log.Println("Result token: " + signedToken) // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Iml2YW5AeWEucnUifQ.aFyFmyfsB_-cfzyBIUSUJqLOmgkUDOg_SvQUckpQCfo
+	log.Println("Result token: " + signedToken)
 
 	return signedToken, nil
 }
@@ -29,35 +48,54 @@ func GenerateJwtToken(secret []byte, userLogin string) (string, error) {
 // token — JWT пользователя.
 // если у пользователь ввел правильные данные, и у него есть необходимая привилегия -
 // возвращаем true и логин пользователя, иначе - false
-func VerifyToken(secret []byte, token string) (string, bool) { //  как secret используется?????!!!!!
+// TODO вернуть структуру из login и userID
+type Customer struct {
+	ID    int
+	Login string
+}
+
+// HELP TODO *Customer или Customer???????????
+func VerifyToken(secret []byte, token string) (Customer, bool) { //  HELP TODO как secret используется?????!!!!!
 	jwtToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		return secret, nil // почему здесь secret, если д.б. interface????  // куда возвращается return???
+		return secret, nil // почему здесь secret, если д.б. interface????
 	})
 	if err != nil {
 		log.Printf("Failed to parse token: %s\n", err)
-		return "", false
+		return Customer{}, false
 	}
 
 	if !jwtToken.Valid {
-		return "", false
+		return Customer{}, false
 	}
 
 	claims, ok := jwtToken.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", false
+		return Customer{}, false
 	}
 
-	loginRaw, ok := claims["login"]
-	log.Println("claims[login]:", claims["login"])
+	loginRaw, ok := claims["Login"]
+	log.Println("claims[Login]:", claims["Login"])
 	if !ok {
-		return "", false
+		return Customer{}, false
 	}
 
 	login, ok := loginRaw.(string)
 	if !ok {
-		return "", false
+		return Customer{}, false
 	}
 	log.Println("login:", login)
+	log.Println("claims[UserID]:", claims["UserID"])
 
-	return login, true
+	userIDRaw, ok := claims["UserID"]
+	if !ok {
+		return Customer{}, false
+	}
+	log.Println("userIDRaw:", reflect.TypeOf(userIDRaw), userIDRaw)
+	userID, ok := userIDRaw.(float64)
+	if !ok {
+		return Customer{}, false
+	}
+
+	log.Println("claims[UserID]:", claims["UserID"])
+	return Customer{ID: int(userID), Login: login}, true
 }

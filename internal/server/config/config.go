@@ -29,7 +29,7 @@ type Config struct {
 	DBPort     string `envconfig:"DATABASE_PORT" default:"5433"`
 	DBUser     string `envconfig:"DATABASE_USER" default:"postgres"`
 	DBPassword string `envconfig:"DATABASE_PASSWORD" default:"password"`
-	DBName     string `envconfig:"DATABASE_NAME" default:"praktikum-fin"`
+	DBName     string `envconfig:"DATABASE_NAME" default:"postgres"`
 
 	MinioEndPoint   string `envconfig:"MINIO_ENDPOINT" default:"localhost:9000"`
 	JwtSignKey      string `envconfig:"JWT_SIGNKEY" required:"true"`
