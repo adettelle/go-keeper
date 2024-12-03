@@ -1,5 +1,34 @@
 version: "3"
 services:
+  gokeeper:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio_mc:
+        condition: service_started
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - JWT_SIGNKEY=my_secret_key
+      # - ACCESS_KEYID=RPClJMVJmUJyRF2PgZSK
+      # - SECRET_ACCESSKEY=qJa8Bl0VHixgkDoymsJC7yEgb88nPTUQsZNLPUBM
+      - ACCESS_KEYID=AAAAAAAAAAAAAAAAAAAA
+      - SECRET_ACCESSKEY=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - DATABASE_NAME=postgres
+      - ADDRESS=0.0.0.0:8080
+      - MINIO_ENDPOINT=minio:9000
+    ports:
+      - "8080:8080"
+    volumes:
+      - "./keys:/app/keys"
+
   postgres:
     restart: unless-stopped
     image: postgres:latest
@@ -9,14 +38,49 @@ services:
       - "postgres-data:/var/lib/postgresql/data"
     environment:
       - "POSTGRES_PASSWORD=password"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+
   minio:
     image: minio/minio:latest
-    command: minio server --console-address ":9001" /home/shared
+    command: 'minio server --console-address ":9001" /home/shared'
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
       - "minio-data:/home/shared"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+  minio_mc:
+    # This service is short lived, it does this:
+    # - starts up
+    # - checks to see if the MinIO service `minio` is ready
+    # - creates a MinIO Access Key that the StarRocks services will use
+    # - exits
+    image: minio/mc:latest
+    entrypoint:
+      - sh
+      - -c
+      - |
+        until mc ls minio > /dev/null 2>&1; do
+          sleep 0.5
+        done
+
+        mc alias set myminio http://minio:9000 minioadmin minioadmin
+        mc admin user svcacct add --access-key AAAAAAAAAAAAAAAAAAAA \
+        --secret-key BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB \
+        myminio \
+        minioadmin
+    depends_on:
+        minio:
+          condition: service_healthy
 
 volumes:
   postgres-data:
