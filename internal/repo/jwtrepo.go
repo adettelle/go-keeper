@@ -22,15 +22,17 @@ func (jr *JwtRepo) AddJwtToken(ctx context.Context, custID int, token string) er
 		return err
 	}
 
+	//is_valid := true
+
 	sqlSt := `insert into jwttoken (customer_id, token, is_valid)
 		values ($1, $2, true);` // is_valid сначала всегда true
 
-	_, err = jr.DB.ExecContext(ctx, sqlSt, custID, token)
+	_, err = jr.DB.ExecContext(ctx, sqlSt, custID, token) //), is_valid)
 	if err != nil {
 		log.Println("error in adding jwt token:", err)
 		return err
 	}
-	log.Println("Token added")
+	log.Println("Token is added.")
 	return nil
 }
 
@@ -43,7 +45,7 @@ func (jr *JwtRepo) invalidateTokens(custID int) error {
 		log.Println("error in invalidating tokens:", err)
 		return err
 	}
-	log.Println("Tokens are invalidated")
+	log.Println("Tokens are invalidated.")
 	return nil
 }
 

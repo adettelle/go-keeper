@@ -2,7 +2,6 @@ package mware
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -49,7 +48,7 @@ func AuthMwr(h http.HandlerFunc, jwtSignKey []byte, jwtChecker JwtChecker) http.
 
 		r.Header.Set("x-user", cust.Login)
 		r.Header.Set("x-user-id", strconv.Itoa(cust.ID))
-		log.Println("login, id:", cust.Login, cust.ID)
+		// log.Println("login, id:", cust.Login, cust.ID)
 		h.ServeHTTP(w, r) // передали следующей функции, которую мы обрамляем middleware'ом
 	}
 

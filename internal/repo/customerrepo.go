@@ -2,7 +2,9 @@ package repo
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -37,7 +39,6 @@ func IsCustomerExistsErr(err error) bool {
 	return errors.As(err, &customErr)
 }
 
-// регистрация пользователя, надо ли проверить, что такого пользователя нет???????????????????
 func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, login, masterPassword string) (int, error) {
 	sqlCustomer := `select count(*) > 0 from customer where login = $1 limit 1;`
 	row := cr.DB.QueryRowContext(ctx, sqlCustomer, login)
@@ -62,7 +63,7 @@ func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, login, masterPass
 		return 0, err
 	}
 
-	log.Println("Registered")
+	log.Println("Customer is registered.")
 	return custID, nil
 }
 
@@ -88,4 +89,31 @@ func (cr *CustomerRepo) GetCustomerByLogin(ctx context.Context, login string) (*
 		return nil, err
 	}
 	return &customer, nil
+}
+
+// VerifyUser — функция, которая выполняет аутентификацию и авторизацию пользователя
+// login — это email пользователя, pass — это masterpassword, permission — необходимая привилегия.
+// если пользователь ввел правильные данные, и у него есть необходимая привилегия — возвращаем true, иначе — false
+// VerifyUser возвращает userID и bool (существует ли пользователь)
+func (cr *CustomerRepo) VerifyUser(ctx context.Context, login string, pass string) (bool, int) {
+	if login == "" || pass == "" {
+		return false, 0
+	}
+	// получаем хеш пароля
+	hashedPassword := sha256.Sum256([]byte(pass))
+	hashStringPassword := hex.EncodeToString(hashedPassword[:]) // дополнительно кодируем пароль
+
+	// проверяем введенные данные
+	cust, err := cr.GetCustomerByLogin(ctx, login)
+	log.Println("++++++", cust)
+	if err != nil {
+		log.Printf("Error in authorization %s", cust.Login)
+		return false, 0
+	}
+	if cust == nil {
+		log.Printf("Error in authorization %s, user not found", login)
+		return false, 0
+	}
+
+	return cust.MasterPassword == hashStringPassword, cust.ID
 }

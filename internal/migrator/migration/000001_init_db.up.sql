@@ -32,7 +32,7 @@ create table card
     title varchar(255) not null,
     description varchar(1000),
     foreign key (customer_id) references customer (id),
-    unique(num, customer_id));
+    unique(num, customer_id, title));
 
 create table jwttoken 
     (id serial primary key,
@@ -42,3 +42,9 @@ create table jwttoken
     foreign key (customer_id) references customer (id));
 
 CREATE UNIQUE INDEX token_idx ON jwttoken (token);
+
+CREATE UNIQUE INDEX pass_title_idx ON pass (title);
+
+CREATE UNIQUE INDEX bfile_title_idx ON bfile (title);
+
+CREATE UNIQUE INDEX card_title_idx ON card (title);

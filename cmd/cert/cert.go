@@ -24,7 +24,6 @@ func main() {
 	if prefix == "" {
 		log.Fatal("No prefix provided")
 	}
-	log.Println("prefix:", prefix)
 
 	// создаём шаблон сертификата
 	cert := &x509.Certificate{
@@ -65,17 +64,23 @@ func main() {
 	// используется для хранения и обмена криптографическими ключами
 	var certPEM bytes.Buffer
 
-	pem.Encode(&certPEM, &pem.Block{
+	err = pem.Encode(&certPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var privateKeyPEM bytes.Buffer
 
-	pem.Encode(&privateKeyPEM, &pem.Block{
+	err = pem.Encode(&privateKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fileCert, err := os.OpenFile(fmt.Sprintf("./keys/%s_cert.pem", prefix), os.O_CREATE|os.O_WRONLY, 0777)
 	if err != nil {
@@ -119,5 +124,8 @@ func savePubKey(pubkey *rsa.PublicKey, prefix string) {
 	}
 	defer file.Close()
 
-	file.Write(pubBytes)
+	_, err = file.Write(pubBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

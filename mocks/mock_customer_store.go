@@ -36,11 +36,12 @@ func (m *MockICustomerRepo) EXPECT() *MockICustomerRepoMockRecorder {
 }
 
 // AddCustomer mocks base method.
-func (m *MockICustomerRepo) AddCustomer(arg0 context.Context, arg1, arg2, arg3 string) error {
+func (m *MockICustomerRepo) AddCustomer(arg0 context.Context, arg1, arg2, arg3 string) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddCustomer", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AddCustomer indicates an expected call of AddCustomer.
@@ -50,10 +51,10 @@ func (mr *MockICustomerRepoMockRecorder) AddCustomer(arg0, arg1, arg2, arg3 inte
 }
 
 // GetCustomerByLogin mocks base method.
-func (m *MockICustomerRepo) GetCustomerByLogin(arg0 context.Context, arg1 string) (*repo.Customer, error) {
+func (m *MockICustomerRepo) GetCustomerByLogin(arg0 context.Context, arg1 string) (*repo.CustomerGetByLogin, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCustomerByLogin", arg0, arg1)
-	ret0, _ := ret[0].(*repo.Customer)
+	ret0, _ := ret[0].(*repo.CustomerGetByLogin)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -62,4 +63,19 @@ func (m *MockICustomerRepo) GetCustomerByLogin(arg0 context.Context, arg1 string
 func (mr *MockICustomerRepoMockRecorder) GetCustomerByLogin(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCustomerByLogin", reflect.TypeOf((*MockICustomerRepo)(nil).GetCustomerByLogin), arg0, arg1)
+}
+
+// VerifyUser mocks base method.
+func (m *MockICustomerRepo) VerifyUser(arg0 context.Context, arg1, arg2 string) (bool, int) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VerifyUser", arg0, arg1, arg2)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(int)
+	return ret0, ret1
+}
+
+// VerifyUser indicates an expected call of VerifyUser.
+func (mr *MockICustomerRepoMockRecorder) VerifyUser(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyUser", reflect.TypeOf((*MockICustomerRepo)(nil).VerifyUser), arg0, arg1, arg2)
 }

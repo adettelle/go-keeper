@@ -1,9 +1,6 @@
 package localstorage
 
 import (
-	// "github.com/zalando/go-keyring"
-	"fmt"
-
 	"github.com/99designs/keyring"
 )
 
@@ -17,35 +14,22 @@ type IKeyStorage interface {
 	Get() (string, error)
 }
 
-// func Set(jwtToken string) error {
-// 	err := keyring.Set(service, user, jwtToken)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	return nil
-// }
+type KeyStore struct {
+	Config *keyring.Config
+}
 
-// func Get() (string, error) {
-// 	jwtToken, err := keyring.Get(service, user)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	return jwtToken, nil
-// }
+func NewKeyStore(config *keyring.Config) *KeyStore {
+	return &KeyStore{
+		Config: config,
+	}
+}
 
-func Set(jwtToken string) error {
-	ring, err := keyring.Open(keyring.Config{
-		ServiceName:      service,
-		AllowedBackends:  nil, // []keyring.BackendType{keyring.FileBackend}
-		FilePasswordFunc: keyring.TerminalPrompt,
-		// AllowedBackends: []keyring.BackendType{keyring.KWalletBackend},
-		FileDir: "~/",
-	})
+func (ks *KeyStore) Set(jwtToken string) error {
+	ring, err := keyring.Open(*ks.Config)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("!!!!!!!", ring)
 	err = ring.Set(keyring.Item{
 		Key:  user,
 		Data: []byte(jwtToken),
@@ -56,14 +40,8 @@ func Set(jwtToken string) error {
 	return nil
 }
 
-func Get() (string, error) {
-	ring, err := keyring.Open(keyring.Config{
-		ServiceName: service,
-		// TODO на крайний случай
-		AllowedBackends:  nil, // []keyring.BackendType{keyring.FileBackend}
-		FilePasswordFunc: keyring.TerminalPrompt,
-		FileDir:          "~/",
-	})
+func (ks *KeyStore) Get() (string, error) {
+	ring, err := keyring.Open(*ks.Config)
 	if err != nil {
 		return "", err
 	}
@@ -73,6 +51,6 @@ func Get() (string, error) {
 		return "", err
 	}
 
-	fmt.Printf("%s", i.Data)
+	// log.Println("----", string(i.Data))
 	return string(i.Data), nil
 }

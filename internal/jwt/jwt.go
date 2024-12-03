@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"log"
-	"reflect"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -39,7 +38,7 @@ func GenerateJwtToken(secret []byte, userLogin string, userID int) (string, erro
 		log.Printf("failed to sign jwt: %s\n", err)
 		return "", err
 	}
-	log.Println("Result token: " + signedToken)
+	// log.Println("Result token: " + signedToken)
 
 	return signedToken, nil
 }
@@ -48,7 +47,6 @@ func GenerateJwtToken(secret []byte, userLogin string, userID int) (string, erro
 // token — JWT пользователя.
 // если у пользователь ввел правильные данные, и у него есть необходимая привилегия -
 // возвращаем true и логин пользователя, иначе - false
-// TODO вернуть структуру из login и userID
 type Customer struct {
 	ID    int
 	Login string
@@ -74,7 +72,7 @@ func VerifyToken(secret []byte, token string) (Customer, bool) { //  HELP TODO �
 	}
 
 	loginRaw, ok := claims["Login"]
-	log.Println("claims[Login]:", claims["Login"])
+	// log.Println("claims[Login]:", claims["Login"])
 	if !ok {
 		return Customer{}, false
 	}
@@ -83,19 +81,19 @@ func VerifyToken(secret []byte, token string) (Customer, bool) { //  HELP TODO �
 	if !ok {
 		return Customer{}, false
 	}
-	log.Println("login:", login)
-	log.Println("claims[UserID]:", claims["UserID"])
+	// log.Println("login:", login)
+	// log.Println("claims[UserID]:", claims["UserID"])
 
 	userIDRaw, ok := claims["UserID"]
 	if !ok {
 		return Customer{}, false
 	}
-	log.Println("userIDRaw:", reflect.TypeOf(userIDRaw), userIDRaw)
+	//log.Println("userIDRaw:", reflect.TypeOf(userIDRaw), userIDRaw)
 	userID, ok := userIDRaw.(float64)
 	if !ok {
 		return Customer{}, false
 	}
 
-	log.Println("claims[UserID]:", claims["UserID"])
+	//log.Println("claims[UserID]:", claims["UserID"])
 	return Customer{ID: int(userID), Login: login}, true
 }

@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/adettelle/go-keeper/internal/database"
 	"github.com/adettelle/go-keeper/internal/migrator"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/internal/server/api"
 	"github.com/adettelle/go-keeper/internal/server/config"
+	"github.com/adettelle/go-keeper/internal/service"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -20,13 +22,12 @@ func main() {
 		log.Println("error in config")
 		log.Fatal(err)
 	}
-	log.Println("config:", cfg)
 
 	connStr := cfg.DBConnStr()
 
-	migrator.MustApplyMigrations(connStr) // dbParams)
+	migrator.MustApplyMigrations(connStr)
 
-	db, err := database.Connect(connStr) // dbParams)
+	db, err := database.Connect(connStr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -47,10 +48,16 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	handlers := api.NewCustomerHandlers(
-		customerRepo, pwdRepo, fileRepo, cardRepo, jwtRepo, minioClient, []byte(cfg.JwtSignKey), cfg)
+	minioService := service.NewMinioService(minioClient, cfg.BucketName, 3*time.Minute)
+	err = minioService.CreateBucket()
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-	address := cfg.Address // "localhost:8080"
+	handlers := api.NewCustomerHandlers(
+		customerRepo, pwdRepo, fileRepo, cardRepo, jwtRepo, minioService, []byte(cfg.JwtSignKey), cfg)
+
+	address := cfg.Address // settings.ServerURL
 	fmt.Println("Starting server at address:", address)
 
 	r := api.NewRouter(handlers, jwtRepo)
