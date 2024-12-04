@@ -16,10 +16,10 @@ jobs:
 
       # step 2: generate build files and dump inside the workspace directory of the runner
       - name: Generate build files
-        uses: thatisuday/go-build-action@v1
+        uses: thatisuday/go-cross-build@master
         with:
           platforms: "linux/amd64, darwin/amd64, windows/amd64"
-          package: "cmd/client/main.go"
+          package: "cmd/client/"
           name: "keeper"
           compress: "true"
           dest: "dist"
