@@ -1,6 +1,6 @@
 module github.com/adettelle/go-keeper
 
-go 1.23.2
+go 1.23
 
 require (
 	github.com/99designs/keyring v1.2.1
