@@ -2,11 +2,7 @@
 name: release
 
 # on events
-on:
-  release:
-    types:
-      - created
-
+on: workflow_dispatch
 # jobs
 jobs:
   # generate build cross-platform build files
