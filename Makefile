@@ -1,5 +1,4 @@
 DB="postgresql://postgres:password@localhost:5433/praktikum-fin?sslmode=disable"
-GOPATH?=/home/liudmila/go/bin
 include .env
 export 
 
@@ -12,14 +11,14 @@ migrate-up:
 migrate-down:
 	./migrate -path internal/migrator/migration/ -database $(DB) -verbose down
 
-test:
+test: prepare-env
 	go test ./...
 
 lint: 
 	golangci-lint run
 
 vet:
-	$(GOPATH)/staticcheck ./...
+	staticcheck ./...
 
 check: lint vet test
 
@@ -39,3 +38,9 @@ run-server: prepare-env
 
 run-all:
 	docker-compose up --build
+
+generate-client-certs:
+	mkdir ./keys1 && \
+		openssl req -x509 -newkey rsa:4096 -keyout ./keys1/client_privatekey.pem \
+			-out ./keys1/client_cert.pem -sha256 -days 365 -nodes \
+			-subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"
