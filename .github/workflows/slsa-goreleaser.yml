@@ -25,7 +25,7 @@ jobs:
       evaluated-envs: "VERSION:v0.0.0"
       draft-release: true
       upload-assets: true
-      upload-tag-name: v0.0.0
+      upload-tag-name: "{{ github.ref_name }}-{{ .CommitDate }}"
 
   list:
     runs-on: ubuntu-latest
