@@ -1,3 +1,5 @@
+// Package jwt provides functionality for generating and verifying JSON Web Tokens (JWTs)
+// for authentication and authorization.
 package jwt
 
 import (
@@ -7,55 +9,56 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Claims represents the payload of the JWT, including custom fields for user information
+// and standard claims from the `jwt` library.
 type Claims struct {
-	jwt.RegisteredClaims
-	Login  string
-	UserID int
+	jwt.RegisteredClaims // Standard claims such as expiration time
+	Login                string
+	UserID               int
 }
 
+// TOKEN_EXP defines the expiration duration for generated JWT tokens.
 const TOKEN_EXP = time.Hour * 24
 
+// GenerateJwtToken generates a signed JWT token using the provided secret key
+// and user details.
 func GenerateJwtToken(secret []byte, userLogin string, userID int) (string, error) {
-	// создаём payload
-	// claims := jwt.MapClaims{
-	// 	"login":       userLogin,
-	// 	"customer_id": userID,
-	// }
-	// создаём jwt и указываем payload
+	// Create a new JWT with claims
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			// когда создан токен
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
 		},
-		// собственное утверждение
-		Login:  userLogin,
-		UserID: userID,
+		Login:  userLogin, // Custom claim: user login
+		UserID: userID,    // Custom claim: user ID
 	})
 
-	// получаем подписанный токен
+	// Sign the token using the secret key
 	signedToken, err := jwtToken.SignedString(secret)
 	if err != nil {
 		log.Printf("failed to sign jwt: %s\n", err)
 		return "", err
 	}
-	// log.Println("Result token: " + signedToken)
 
 	return signedToken, nil
 }
 
-// VerifyToken — функция, которая выполняет аутентификацию и авторизацию пользователя.
-// token — JWT пользователя.
-// если у пользователь ввел правильные данные, и у него есть необходимая привилегия -
-// возвращаем true и логин пользователя, иначе - false
 type Customer struct {
 	ID    int
 	Login string
 }
 
-// HELP TODO *Customer или Customer???????????
-func VerifyToken(secret []byte, token string) (Customer, bool) { //  HELP TODO как secret используется?????!!!!!
+// VerifyToken verifies a JWT token, validates its claims, and extracts user information.
+//
+// Parameters:
+//   - secret: The secret key used to validate the token signature.
+//   - token: The JWT token to be verified.
+//
+// Returns:
+//   - A `Customer` object containing user ID and login if verification is successful.
+//   - A boolean indicating whether the token is valid or not.
+func VerifyToken(secret []byte, token string) (Customer, bool) {
 	jwtToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		return secret, nil // почему здесь secret, если д.б. interface????
+		return secret, nil
 	})
 	if err != nil {
 		log.Printf("Failed to parse token: %s\n", err)
@@ -72,7 +75,6 @@ func VerifyToken(secret []byte, token string) (Customer, bool) { //  HELP TODO �
 	}
 
 	loginRaw, ok := claims["Login"]
-	// log.Println("claims[Login]:", claims["Login"])
 	if !ok {
 		return Customer{}, false
 	}
@@ -81,19 +83,15 @@ func VerifyToken(secret []byte, token string) (Customer, bool) { //  HELP TODO �
 	if !ok {
 		return Customer{}, false
 	}
-	// log.Println("login:", login)
-	// log.Println("claims[UserID]:", claims["UserID"])
 
 	userIDRaw, ok := claims["UserID"]
 	if !ok {
 		return Customer{}, false
 	}
-	//log.Println("userIDRaw:", reflect.TypeOf(userIDRaw), userIDRaw)
 	userID, ok := userIDRaw.(float64)
 	if !ok {
 		return Customer{}, false
 	}
 
-	//log.Println("claims[UserID]:", claims["UserID"])
 	return Customer{ID: int(userID), Login: login}, true
 }

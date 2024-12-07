@@ -1,3 +1,5 @@
+// Package client provides functionality for managing card, file, password and user information through
+// HTTP requests, including operations to add, retrieve, update, and delete.
 package client
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+// PasswordService is a service for managing password-related operations.
 type PasswordService struct {
 	transport *http.Transport
 	keyStore  localstorage.IKeyStorage
@@ -44,7 +47,6 @@ func (ps *PasswordService) GetPasswordByTitle(title string) error {
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("could not connect to localhost:8080/api/user/password/"+title, err)
 		return err
 	}
 	fmt.Printf("%s\n", pwd)
@@ -52,11 +54,13 @@ func (ps *PasswordService) GetPasswordByTitle(title string) error {
 }
 
 type PasswordToGet struct {
-	ID          string `json:"id"`
+	// ID          string `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
 
+// AllPass retrieves all passwords' info (only title and description) associated with the user.
+// It fetches password data from the server and displays it in a tabular format.
 func (ps *PasswordService) AllPass() error {
 	jwtToken, err := ps.keyStore.Get()
 	if err != nil {
@@ -76,7 +80,6 @@ func (ps *PasswordService) AllPass() error {
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("could not connect to localhost:8080/api/user/passwords", err)
 		return err
 	} else {
 		t := table.NewWriter()
@@ -92,13 +95,13 @@ func (ps *PasswordService) AllPass() error {
 }
 
 type PasswordToUpdate struct {
-	ID          int    `json:"id"`
 	Password    string `json:"pwd,omitempty"`
-	Title       string `json:"title,omitempty"`
 	Description string `json:"description,omitempty"`
 }
 
-func (ps *PasswordService) UpdatePassword(title string, args ...string) error { // (id int, args ...string)
+// UpdateCard updates password itself and description by unique title.
+// It updates only arguments which are provided.
+func (ps *PasswordService) UpdatePassword(title string, args ...string) error {
 	jwtToken, err := ps.keyStore.Get()
 	if err != nil {
 		return err
@@ -120,7 +123,6 @@ func (ps *PasswordService) UpdatePassword(title string, args ...string) error { 
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("could not connect to localhost:8080/api/user/password/update", err)
 		return err
 	} else {
 		log.Println("Password info is updated.")
@@ -144,7 +146,6 @@ func (ps *PasswordService) DeletePasswordByTitle(title string) error {
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("could not connect to localhost:8080/api/user/delete/"+title, err)
 		return err
 	} else {
 		log.Println("Password is deleted.")
@@ -152,17 +153,23 @@ func (ps *PasswordService) DeletePasswordByTitle(title string) error {
 	return nil
 }
 
-type Pwd struct {
-	Password    string `json:"pwd"`
-	Title       string `json:"title"`
+type PwdToAdd struct {
+	Password    string `json:"pwd" validate:"required,min=1"`
+	Title       string `json:"title" validate:"required,min=1"`
 	Description string `json:"description"`
 }
 
 func (ps *PasswordService) AddPassword(password, title, description string) error {
-	pwdToAdd := Pwd{
+	pwdToAdd := PwdToAdd{
 		Password:    password,
 		Title:       title,
 		Description: description,
+	}
+
+	err := validate.Struct(pwdToAdd)
+	if err != nil {
+		log.Println("error in validating:", err)
+		return err
 	}
 
 	jwtToken, err := ps.keyStore.Get()
@@ -181,7 +188,6 @@ func (ps *PasswordService) AddPassword(password, title, description string) erro
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("could not connect to localhost:8080/api/user/password: ", err)
 		return err
 	} else {
 		log.Println("Password is added.")

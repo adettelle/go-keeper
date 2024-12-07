@@ -79,10 +79,10 @@ func (mr *MockICardRepoMockRecorder) GetAllCards(arg0, arg1 interface{}) *gomock
 }
 
 // GetCardByTitle mocks base method.
-func (m *MockICardRepo) GetCardByTitle(arg0 context.Context, arg1, arg2 string) (repo.CardGetByTitle, error) {
+func (m *MockICardRepo) GetCardByTitle(arg0 context.Context, arg1, arg2 string) (*repo.CardGetByTitle, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCardByTitle", arg0, arg1, arg2)
-	ret0, _ := ret[0].(repo.CardGetByTitle)
+	ret0, _ := ret[0].(*repo.CardGetByTitle)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

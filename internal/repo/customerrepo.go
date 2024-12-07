@@ -1,3 +1,12 @@
+// Package repo provides functionality for interacting
+// with the card, file and password database repositories.
+// It allows adding, retrieving, updating, and deleting related data
+// while ensuring proper access controls.
+// Package provides functionality for managing customer data in the database.
+// It includes operations for adding customers, retrieving customer details,
+// and verifying user credentials.
+// Also it provides functionality for managing JWT tokens in a database,
+// including adding, invalidating, and checking the validity of tokens.
 package repo
 
 import (
@@ -11,7 +20,7 @@ import (
 )
 
 type CustomerRepo struct {
-	DB *sql.DB // Customers []Customer
+	DB *sql.DB
 }
 
 func NewCustomerRepo(db *sql.DB) *CustomerRepo {
@@ -20,8 +29,9 @@ func NewCustomerRepo(db *sql.DB) *CustomerRepo {
 	}
 }
 
+// CustomerExistsErr represents an error indicating that a customer with the given login already exists.
 type CustomerExistsErr struct {
-	login string
+	login string // The login of the existing customer
 }
 
 func (ce *CustomerExistsErr) Error() string {
@@ -34,11 +44,14 @@ func NewCustomerExistsErr(login string) *CustomerExistsErr {
 	}
 }
 
+// IsCustomerExistsErr checks if an error is of type CustomerExistsErr.
 func IsCustomerExistsErr(err error) bool {
 	var customErr *CustomerExistsErr
 	return errors.As(err, &customErr)
 }
 
+// AddCustomer adds a new customer to the database.
+// Returns the ID of the newly added customer and an error if the operation fails.
 func (cr *CustomerRepo) AddCustomer(ctx context.Context, name, login, masterPassword string) (int, error) {
 	sqlCustomer := `select count(*) > 0 from customer where login = $1 limit 1;`
 	row := cr.DB.QueryRowContext(ctx, sqlCustomer, login)
@@ -91,21 +104,26 @@ func (cr *CustomerRepo) GetCustomerByLogin(ctx context.Context, login string) (*
 	return &customer, nil
 }
 
+// VerifyUser verifies the credentials of a user and checks their authorization.
 // VerifyUser — функция, которая выполняет аутентификацию и авторизацию пользователя
-// login — это email пользователя, pass — это masterpassword, permission — необходимая привилегия.
-// если пользователь ввел правильные данные, и у него есть необходимая привилегия — возвращаем true, иначе — false
-// VerifyUser возвращает userID и bool (существует ли пользователь)
+//
+// Parameters:
+//   - ctx: The context for managing request lifetimes.
+//   - login: The login (email) of the user.
+//   - pass: The master password of the user.
+//
+// Returns:
+//   - A boolean indicating if the user is authenticated and their ID.
 func (cr *CustomerRepo) VerifyUser(ctx context.Context, login string, pass string) (bool, int) {
 	if login == "" || pass == "" {
 		return false, 0
 	}
-	// получаем хеш пароля
+	// Generate a hash of the provided password
 	hashedPassword := sha256.Sum256([]byte(pass))
 	hashStringPassword := hex.EncodeToString(hashedPassword[:]) // дополнительно кодируем пароль
 
-	// проверяем введенные данные
+	// Retrieve the customer by login
 	cust, err := cr.GetCustomerByLogin(ctx, login)
-	log.Println("++++++", cust)
 	if err != nil {
 		log.Printf("Error in authorization %s", cust.Login)
 		return false, 0

@@ -1,3 +1,12 @@
+// Package repo provides functionality for interacting
+// with the card, file and password database repositories.
+// It allows adding, retrieving, updating, and deleting related data
+// while ensuring proper access controls.
+// Package provides functionality for managing customer data in the database.
+// It includes operations for adding customers, retrieving customer details,
+// and verifying user credentials.
+// Also it provides functionality for managing JWT tokens in a database,
+// including adding, invalidating, and checking the validity of tokens.
 package repo
 
 import (
@@ -22,12 +31,10 @@ func (jr *JwtRepo) AddJwtToken(ctx context.Context, custID int, token string) er
 		return err
 	}
 
-	//is_valid := true
-
 	sqlSt := `insert into jwttoken (customer_id, token, is_valid)
-		values ($1, $2, true);` // is_valid сначала всегда true
+		values ($1, $2, true);` // is_valid is always true initially
 
-	_, err = jr.DB.ExecContext(ctx, sqlSt, custID, token) //), is_valid)
+	_, err = jr.DB.ExecContext(ctx, sqlSt, custID, token)
 	if err != nil {
 		log.Println("error in adding jwt token:", err)
 		return err
@@ -36,7 +43,8 @@ func (jr *JwtRepo) AddJwtToken(ctx context.Context, custID int, token string) er
 	return nil
 }
 
-// инвалидирует старые токены перед добавлением нового
+// invalidateTokens sets all existing tokens for a specific customer as invalid in the database.
+// This function is called internally before adding a new token.
 func (jr *JwtRepo) invalidateTokens(custID int) error {
 	sqlSt := `update jwttoken set is_valid = false where customer_id = $1;`
 
@@ -59,7 +67,7 @@ func (jr *JwtRepo) TokenIsValid(ctx context.Context, token string) (bool, error)
 	err := row.Scan(&isValid)
 	if err != nil {
 		log.Println("error in scan:", err)
-		if err == sql.ErrNoRows { // считаем, что это не ошибка, просто не нашли токен
+		if err == sql.ErrNoRows { // This is not considered an error; the token was simply not found.
 			return isValid, nil
 		}
 	}

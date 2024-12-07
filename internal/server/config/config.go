@@ -1,3 +1,6 @@
+// Package config provides functionality for loading and managing application configuration
+// from environment variables and defaults. It also includes helpers for constructing
+// connection strings and validating configuration values.
 package config
 
 import (
@@ -9,21 +12,8 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-const (
-// defaultAddress = "localhost:8080"
-// defaultDBParams = "host=localhost port=5433 user=postgres password=password dbname=praktikum-fin sslmode=disable"
-// dbHost     = "localhost"
-// dbPort     = "5433"
-// dbUser     = "postgres"
-// dbPassword = "password"
-// dbName     = "praktikum-fin"
-// minioEndpoint = "localhost:9000"
-// bucketName = "test"
-)
-
 type Config struct {
 	Address string `envconfig:"ADDRESS" default:"localhost:8080"`
-	// DBParams string `envconfig:"DATABASE_DSN"`
 
 	DBHost     string `envconfig:"DATABASE_HOST" default:"localhost"`
 	DBPort     string `envconfig:"DATABASE_PORT" default:"5433"`
@@ -31,12 +21,12 @@ type Config struct {
 	DBPassword string `envconfig:"DATABASE_PASSWORD" default:"password"`
 	DBName     string `envconfig:"DATABASE_NAME" default:"postgres"`
 
-	MinioEndPoint   string `envconfig:"MINIO_ENDPOINT" default:"localhost:9000"`
-	JwtSignKey      string `envconfig:"JWT_SIGNKEY" required:"true"`
-	AccessKeyID     string `envconfig:"ACCESS_KEYID" required:"true"`     // minio access key ID
-	SecretAccessKey string `envconfig:"SECRET_ACCESSKEY" required:"true"` // minio secret access key
-	UseSSL          bool   `envconfig:"USE_SSL" default:"false"`
-	BucketName      string `envconfig:"BUCKET_NAME" default:"test"`
+	MinioEndPoint        string `envconfig:"MINIO_ENDPOINT" default:"localhost:9000"`
+	JwtSignKey           string `envconfig:"JWT_SIGNKEY" required:"true"`
+	MinioAccessKeyID     string `envconfig:"ACCESS_KEYID" required:"true"`
+	MinioSecretAccessKey string `envconfig:"SECRET_ACCESSKEY" required:"true"`
+	UseSSL               bool   `envconfig:"USE_SSL" default:"false"`
+	BucketName           string `envconfig:"BUCKET_NAME" default:"test"`
 }
 
 func New() (*Config, error) {
@@ -52,6 +42,8 @@ func New() (*Config, error) {
 	return &cfg, nil
 }
 
+// ensureAddrFLagIsCorrect validates the format of the provided address,
+// ensuring it contains a valid host and port.
 func ensureAddrFLagIsCorrect(addr string) {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -64,6 +56,7 @@ func ensureAddrFLagIsCorrect(addr string) {
 	}
 }
 
+// DBConnStr constructs and returns the PostgreSQL database connection string
 func (cfg *Config) DBConnStr() string {
 	dbParams := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)

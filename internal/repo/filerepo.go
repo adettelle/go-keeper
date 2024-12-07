@@ -1,3 +1,12 @@
+// Package repo provides functionality for interacting
+// with the card, file and password database repositories.
+// It allows adding, retrieving, updating, and deleting related data
+// while ensuring proper access controls.
+// Package provides functionality for managing customer data in the database.
+// It includes operations for adding customers, retrieving customer details,
+// and verifying user credentials.
+// Also it provides functionality for managing JWT tokens in a database,
+// including adding, invalidating, and checking the validity of tokens.
 package repo
 
 import (
@@ -69,7 +78,6 @@ func (fr *FileRepo) GetFileCoudIDByTitle(ctx context.Context, title, login strin
 		}
 	}
 
-	// log.Printf("File cloudID is: %s\n", *fileCloudID)
 	return *fileCloudID, nil
 }
 
@@ -124,15 +132,13 @@ func (fr *FileRepo) DeleteFileByTitle(ctx context.Context, title string, login s
 	return nil
 }
 
-// UpdateFile меняет поля (file_name, description) по title файла
+// UpdateFile updates file values (file_name, description) by card title.
 // если в json не передать поле, то оно не измениться
 // если передать пустую строку "" - то поле станет пустым
 func (pr *FileRepo) UpdateFile(ctx context.Context,
 	title string, fileName *string, description *string, userID int) error {
 
 	type file struct {
-		// TODO эти поля в таблице не должны быть пустыми! not empty?
-		// или сделать валидацию при записи в таблицу??????????
 		FileName    *string `db:"fname" goqu:"omitnil"`
 		Description *string `db:"description" goqu:"omitnil"`
 	}
@@ -141,8 +147,6 @@ func (pr *FileRepo) UpdateFile(ctx context.Context,
 		FileName:    fileName,
 		Description: description,
 	}).Where(goqu.C("title").Eq(title)).Where(goqu.C("customer_id").Eq(userID)).ToSQL()
-
-	// fmt.Println(sqlSt)
 
 	_, err := pr.DB.ExecContext(ctx, sqlSt, args...)
 	if err != nil {

@@ -1,3 +1,5 @@
+// Package api provides the routing and HTTP API endpoints for the application.
+// It defines the routes and integrates middleware for authentication and request handling.
 package api
 
 import (
@@ -7,33 +9,40 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouter(handlers *CustomerHandlers, jwtChecker mware.JwtChecker) chi.Router {
+func NewRouter(handlers *CustomerHandlers, cardHandlers *CardHandlers, passHandlers *PassHandlers,
+	fileHandlers *FileHandlers, jwtChecker mware.JwtChecker) chi.Router {
+
 	r := chi.NewRouter()
 
+	// withAuth wraps a given HTTP handler with authentication middleware.
 	withAuth := func(h http.HandlerFunc) http.HandlerFunc {
 		return mware.AuthMwr(h, handlers.JwtSignKey, jwtChecker)
 	}
 
+	// User authentication routes
 	r.Post("/api/user/register", handlers.RegisterCustomer)
 	r.Post("/api/user/login", handlers.Login)
 
-	r.Put("/api/user/password", withAuth(handlers.PasswordCreate))
-	r.Get("/api/user/passwords", withAuth(handlers.AllPasswords))
-	r.Get("/api/user/password/{title}", withAuth(handlers.PasswordByTitle))
-	r.Post("/api/user/password/update/{title}", withAuth(handlers.PasswordUpdate))
-	r.Delete("/api/user/password/{title}", withAuth(handlers.PasswordDelete))
+	// Password management routes
+	r.Put("/api/user/password", withAuth(passHandlers.PasswordCreate))
+	r.Get("/api/user/passwords", withAuth(passHandlers.AllPasswords))
+	r.Get("/api/user/password/{title}", withAuth(passHandlers.PasswordByTitle))
+	r.Post("/api/user/password/update/{title}", withAuth(passHandlers.PasswordUpdate))
+	r.Delete("/api/user/password/{title}", withAuth(passHandlers.PasswordDelete))
 
-	r.Put("/api/user/file", withAuth(handlers.FileAdd))
-	r.Get("/api/user/files", withAuth(handlers.AllFiles))
-	r.Get("/api/user/file/{title}", withAuth(handlers.FileGetByTitle))
-	r.Post("/api/user/file/update/{title}", withAuth(handlers.FileUpdate))
-	r.Delete("/api/user/file/{title}", withAuth(handlers.FileDeleteByTitle))
+	// File management routes
+	r.Put("/api/user/file", withAuth(fileHandlers.FileAdd))
+	r.Get("/api/user/files", withAuth(fileHandlers.AllFiles))
+	r.Get("/api/user/file/{title}", withAuth(fileHandlers.FileGetByTitle))
+	r.Post("/api/user/file/update/{title}", withAuth(fileHandlers.FileUpdate))
+	r.Delete("/api/user/file/{title}", withAuth(fileHandlers.FileDeleteByTitle))
 
-	r.Put("/api/user/card", withAuth(handlers.CardAdd))
-	r.Get("/api/user/cards", withAuth(handlers.AllCards))
-	r.Get("/api/user/card/{title}", withAuth(handlers.CardGetByTitle))
-	r.Post("/api/user/card/update/{title}", withAuth(handlers.CardUpdate))
-	r.Delete("/api/user/card/{title}", withAuth(handlers.CardDeleteByTitle))
+	// Card management routes
+	r.Put("/api/user/card", withAuth(cardHandlers.CardAdd))
+	r.Get("/api/user/cards", withAuth(cardHandlers.AllCards))
+	r.Get("/api/user/card/{title}", withAuth(cardHandlers.CardGetByTitle))
+	r.Post("/api/user/card/update/{title}", withAuth(cardHandlers.CardUpdate))
+	r.Delete("/api/user/card/{title}", withAuth(cardHandlers.CardDeleteByTitle))
 
 	return r
 }

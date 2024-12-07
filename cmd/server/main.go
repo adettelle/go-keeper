@@ -1,3 +1,4 @@
+// Server allows users to store logins, passwords, binary data and other private information safely and securely.
 package main
 
 import (
@@ -23,15 +24,27 @@ func main() {
 		log.Fatal(err)
 	}
 
+	srv, err := initializeServer(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = srv.ListenAndServeTLS("./keys/server_cert.pem", "./keys/server_privatekey.pem")
+	if err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
+}
+
+func initializeServer(cfg *config.Config) (*http.Server, error) {
 	connStr := cfg.DBConnStr()
 
 	migrator.MustApplyMigrations(connStr)
 
 	db, err := database.Connect(connStr)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	defer db.Close()
+	//defer db.Close() // TODO outside the function/pass db in params
 
 	customerRepo := repo.NewCustomerRepo(db)
 	pwdRepo := repo.NewPasswordRepo(db)
@@ -41,34 +54,34 @@ func main() {
 
 	// Initialize minio client object.
 	minioClient, err := minio.New(cfg.MinioEndPoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+		Creds:  credentials.NewStaticV4(cfg.MinioAccessKeyID, cfg.MinioSecretAccessKey, ""),
 		Secure: cfg.UseSSL,
 	})
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 
 	minioService := service.NewMinioService(minioClient, cfg.BucketName, 3*time.Minute)
 	err = minioService.CreateBucket()
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
+	fmt.Println("Starting minio service")
 
-	handlers := api.NewCustomerHandlers(
-		customerRepo, pwdRepo, fileRepo, cardRepo, jwtRepo, minioService, []byte(cfg.JwtSignKey), cfg)
+	handlers := api.NewCustomerHandlers(customerRepo, jwtRepo, []byte(cfg.JwtSignKey), cfg)
 
-	address := cfg.Address // settings.ServerURL
+	cardHandlers := api.NewCardHandlers(cardRepo, []byte(cfg.JwtSignKey), cfg)
+	passHandlers := api.NewPassHandlers(pwdRepo, []byte(cfg.JwtSignKey), cfg)
+	fileHandlers := api.NewFileHandlers(fileRepo, minioService, []byte(cfg.JwtSignKey), cfg)
+
+	address := cfg.Address
 	fmt.Println("Starting server at address:", address)
 
-	r := api.NewRouter(handlers, jwtRepo)
+	r := api.NewRouter(handlers, cardHandlers, passHandlers, fileHandlers, jwtRepo)
 
 	srv := &http.Server{
 		Addr:    address,
 		Handler: r,
 	}
-
-	err = srv.ListenAndServeTLS("./keys/server_cert.pem", "./keys/server_privatekey.pem")
-	if err != http.ErrServerClosed {
-		log.Fatal(err)
-	}
+	return srv, nil
 }

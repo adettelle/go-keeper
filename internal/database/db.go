@@ -1,3 +1,5 @@
+// Package database provides functionality for connecting to a PostgreSQL database
+// using the `pgx` driver.
 package database
 
 import (
@@ -13,5 +15,6 @@ func Connect(dbParams string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Connected to DB ")
 	return db, nil
 }

@@ -1,3 +1,12 @@
+// Package repo provides functionality for interacting
+// with the card, file and password database repositories.
+// It allows adding, retrieving, updating, and deleting related data
+// while ensuring proper access controls.
+// Package provides functionality for managing customer data in the database.
+// It includes operations for adding customers, retrieving customer details,
+// and verifying user credentials.
+// Also it provides functionality for managing JWT tokens in a database,
+// including adding, invalidating, and checking the validity of tokens.
 package repo
 
 import (
@@ -18,12 +27,11 @@ func NewPasswordRepo(db *sql.DB) *PasswordRepo {
 	}
 }
 
-// добавлять пароль может только аутентифицированный пользователь
 func (pr *PasswordRepo) CreatePassword(
 	ctx context.Context, password, title, description string, login string) error {
 
-	// не проверяем наличие у пользователя пароля с таким title,
-	// потому что етсь unique (title, customer_id)
+	// do not need to check if the user has a password with this title,
+	// because there is a unique (title, customer_id) in table
 	sqlSt := `insert into pass (pwd, title, description, customer_id) 
 		values ($1, $2, $3, (select id from customer where login = $4));`
 
@@ -36,28 +44,21 @@ func (pr *PasswordRepo) CreatePassword(
 	return nil
 }
 
-// UpdatePassword меняет поля (pwd, description) по title пароля
-// если в json не передать поле, то оно не измениться
-// если передать пустую строку "" - то поле станет пустым
+// UpdatePassword updates the password and description by title.
+// Fields not provided in json remain unchanged.
+// Passing an empty string sets the field to empty.
 func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
-	title string, password *string, description *string, userID int) error { // id int,
+	title string, password *string, description *string, userID int) error {
 
 	type pwd struct {
-		// TODO эти поля в таблице не должны быть пустыми! not empty?
-		// или сделать валидацию при записи в таблицу??????????
-		// Title       *string `db:"title" goqu:"omitnil"`
 		Password    *string `db:"pwd" goqu:"omitnil"`
 		Description *string `db:"description" goqu:"omitnil"`
 	}
 
 	sqlSt, args, _ := goqu.Update("pass").Set(pwd{
-		// Title:       title,
 		Password:    password,
 		Description: description,
 	}).Where(goqu.C("title").Eq(title)).Where(goqu.C("customer_id").Eq(userID)).ToSQL()
-	// было: Where(goqu.C("id").Eq(id))  - TODO CHECK
-
-	// fmt.Println(sqlSt)
 
 	_, err := pr.DB.ExecContext(ctx, sqlSt, args...)
 	if err != nil {
@@ -68,7 +69,7 @@ func (pr *PasswordRepo) UpdatePassword(ctx context.Context,
 	return nil
 }
 
-// DeletePassword удаляет пароль с определенным названием (title) по id пользователя
+// DeletePassword removes a password entry by title and by user login.
 func (pr *PasswordRepo) DeletePassword(ctx context.Context, title string, login string) error {
 	sqlSt := `delete from pass  
 		where title = $1 and pass.customer_id = (select id from customer c where c.login = $2);`
@@ -109,7 +110,7 @@ type Password struct {
 	Description string
 }
 
-// GetAllPasswords получает список паролей по логину пользователя
+// GetAllPasswords retrieves a list of all passwords info (title and description) for the specified user.
 func (pr *PasswordRepo) GetAllPasswords(ctx context.Context, login string) ([]Password, error) {
 	pwds := make([]Password, 0)
 

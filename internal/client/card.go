@@ -1,3 +1,5 @@
+// Package client provides functionality for managing card, file, password and user information through
+// HTTP requests, including operations to add, retrieve, update, and delete.
 package client
 
 import (
@@ -10,9 +12,14 @@ import (
 	"github.com/adettelle/go-keeper/cmd/settings"
 	"github.com/adettelle/go-keeper/internal/localstorage"
 	"github.com/carlmjohnson/requests"
+	"github.com/go-playground/validator/v10"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+// use a single instance of Validate, it caches struct info
+var validate *validator.Validate = validator.New(validator.WithRequiredStructEnabled())
+
+// CardService is a service for managing card-related operations.
 type CardService struct {
 	transport *http.Transport
 	keyStore  localstorage.IKeyStorage
@@ -31,6 +38,8 @@ type CardToGet struct {
 	Description string `json:"description"`
 }
 
+// AllCards retrieves all cards associated with the user.
+// It fetches card data from the server and displays it in a tabular format.
 func (cs *CardService) AllCards() error {
 	jwtToken, err := cs.keyStore.Get()
 	if err != nil {
@@ -50,7 +59,6 @@ func (cs *CardService) AllCards() error {
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("Could not connect to localhost:8080/api/user/cards", err)
 		return err
 	} else {
 		t := table.NewWriter()
@@ -66,21 +74,26 @@ func (cs *CardService) AllCards() error {
 }
 
 type CardToAdd struct {
-	Num         string `json:"num"`
-	Expire      string `json:"expires_at"`
-	Cvc         string `json:"cvc"`
-	Title       string `json:"title"`
+	Num         string `json:"num" validate:"required,credit_card,len=16"`
+	Expire      string `json:"expires_at" validate:"required,numeric,len=4"`
+	Cvc         string `json:"cvc" validate:"required,numeric,len=3"`
+	Title       string `json:"title" validate:"required,min=1"`
 	Description string `json:"description"`
 }
 
 func (cs *CardService) AddCard(num, expire, cvc, title, description string) error {
-
 	cardToAdd := CardToAdd{
 		Num:         num,
 		Expire:      expire,
 		Cvc:         cvc,
 		Title:       title,
 		Description: description,
+	}
+
+	err := validate.Struct(cardToAdd)
+	if err != nil {
+		log.Println("error in validating:", err)
+		return err
 	}
 
 	jwtToken, err := cs.keyStore.Get()
@@ -99,11 +112,11 @@ func (cs *CardService) AddCard(num, expire, cvc, title, description string) erro
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("Could not connect to localhost:8080/api/user/addcard: ", err)
 		return err
 	} else {
 		log.Println("Card is added.")
 	}
+
 	return nil
 }
 
@@ -123,7 +136,6 @@ func (cs *CardService) DeleteCardByTitle(cardTitle string) error {
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("Could not connect to localhost:8080/api/user/delete/"+cardID, err)
 		return err
 	} else {
 		log.Println("Card is deleted.")
@@ -144,7 +156,6 @@ func (cs *CardService) GetCardByTitle(title string) error {
 		return err
 	}
 
-	// var cardNum string
 	var card CardToGetByTitle
 
 	err = requests.
@@ -154,7 +165,6 @@ func (cs *CardService) GetCardByTitle(title string) error {
 		Transport(cs.transport).
 		Header("Authorization", string(jwtToken)).
 		Method(http.MethodGet).
-		// ToJSON(&cardNum).
 		ToJSON(&card).
 		Fetch(context.Background())
 
@@ -166,12 +176,14 @@ func (cs *CardService) GetCardByTitle(title string) error {
 }
 
 type CardToUpdate struct {
-	Num         string `json:"num,omitempty"`
-	Expire      string `json:"expires_at,omitempty"`
-	Cvc         string `json:"cvc,omitempty"`
+	Num         string `json:"num,omitempty" validate:"omitnil,omitempty,credit_card,len=16"`
+	Expire      string `json:"expires_at,omitempty"  validate:"omitempty,omitnil,numeric,len=4"`
+	Cvc         string `json:"cvc,omitempty" validate:"omitempty,omitnil,numeric,len=3"`
 	Description string `json:"description,omitempty"`
 }
 
+// UpdateCard updates card's number, date of expire, cvc and description by unique title.
+// It updates only arguments which are provided.
 func (ps *CardService) UpdateCard(title string, args ...string) error {
 	jwtToken, err := ps.keyStore.Get()
 	if err != nil {
@@ -185,6 +197,12 @@ func (ps *CardService) UpdateCard(title string, args ...string) error {
 		Description: args[3],
 	}
 
+	err = validate.Struct(card)
+	if err != nil {
+		log.Println("error in validating:", err)
+		return err
+	}
+
 	err = requests.
 		URL("/api/user/card/update/"+title).
 		Host(settings.ServerURL).
@@ -196,7 +214,6 @@ func (ps *CardService) UpdateCard(title string, args ...string) error {
 		Fetch(context.Background())
 
 	if err != nil {
-		// fmt.Println("could not connect to localhost:8080/api/user/card/update", err)
 		return err
 	} else {
 		log.Println("Card info is updated.")

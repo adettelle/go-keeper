@@ -1,8 +1,9 @@
+// Client authenticate and authorize users on the remote server; gives access to private data on request.
 package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/99designs/keyring"
 	"github.com/adettelle/go-keeper/internal/client"
 	"github.com/adettelle/go-keeper/internal/localstorage"
+	"github.com/adettelle/go-keeper/pkg/cert"
 	"github.com/alecthomas/kong"
 )
 
@@ -19,8 +21,8 @@ type CLI struct {
 		Name           string `help:"User name." short:"n"`
 		Login          string `help:"User login." short:"l"`
 		MasterPassword string `help:"User masterpassword." short:"p"`
-		SignIn         bool   `help:"Sign in now, if present user gets signed in instantly. Otherwise manual login is required (see login command)." short:"s"`
-	} `cmd:"" help:"Registration with authentication needs flag -s (empty flag means true)."`
+		SignIn         bool   `help:"Sign in now. If present user gets signed in instantly. Otherwise manual login is required (see login command)." short:"s" default:"false"`
+	} `cmd:"" help:"Registration with optional authentication."`
 
 	Login struct {
 		Login    string `help:"User login." short:"l"`
@@ -39,16 +41,16 @@ type CLI struct {
 
 	GetPassword struct {
 		Title string `help:"Password uniqe title." short:"t"`
-	} `cmd:"" help:"Retrieves password by unique title."`
+	} `cmd:"" help:"Retrieves password by unique title. To retrieve it into file, use: command > filename."`
 
-	// UpdatePassword меняет поля (pwd, description) по title пароля
-	// если в json не передать поле, то оно не измениться
-	// если передать пустую строку "" - то поле станет пустым
+	// UpdatePassword changes values of password and description by title of password.
+	// With no flag value would not change.
+	// With empty string ("") the value becomes null.
 	UpdatePassword struct {
 		Title       string `help:"Password unique title." short:"t"`
 		Password    string `help:"User password." short:"p"`
 		Description string `help:"Description." short:"d"`
-	} `cmd:"" help:"Updates password by unique title."`
+	} `cmd:"" help:"Updates password and it's description by unique title. With no flag the value would not change."`
 
 	DeletePassword struct {
 		Title string `help:"Password title." short:"t"`
@@ -63,8 +65,7 @@ type CLI struct {
 
 	GetFile struct {
 		Title string `help:"File title." short:"t"`
-	} `cmd:"" help:"Retrieves file by unique title."`
-	// TODO как написать, что сохранить под новым именем можно через >
+	} `cmd:"" help:"Retrieves file by unique title. To retrieve it into file, use: command > filename."`
 
 	Files struct {
 	} `cmd:"" help:"Shows list of added files."`
@@ -73,7 +74,7 @@ type CLI struct {
 		Title       string `help:"File unique title." short:"t"`
 		FileName    string `help:"File path." short:"p"`
 		Description string `help:"Description." short:"d"`
-	} `cmd:"" help:"Updates file by unique title."`
+	} `cmd:"" help:"Updates file's name anf description by unique title. With no flag the value would not change."`
 
 	DeleteFile struct {
 		Title string `help:"File unique title." short:"t"`
@@ -93,7 +94,7 @@ type CLI struct {
 
 	GetCard struct {
 		Title string `help:"Card title." short:"t"`
-	} `cmd:"" help:"Retrieves card by unique title."`
+	} `cmd:"" help:"Retrieves card's details by unique title. To retrieve it into file, use command > filename"`
 
 	UpdateCard struct {
 		Title       string `help:"Card title." short:"t"`
@@ -101,7 +102,7 @@ type CLI struct {
 		Expire      string `help:"Date of expire, lehgth 4." short:"e"`
 		Cvc         string `help:"Card cvc, lehgth 3." short:"c"`
 		Description string `help:"Description." short:"d"`
-	} `cmd:"" help:"Updates card by unique title."`
+	} `cmd:"" help:"Updates card's numbber, date of expire, cvc and description by unique title. With no flag the value would not change."`
 
 	DeleteCard struct {
 		Title string `help:"Card title." short:"t"`
@@ -110,23 +111,84 @@ type CLI struct {
 
 const service = "gokeeper"
 
-func main() {
-	caCert, err := os.ReadFile("./keys/server_cert.pem") //  config.ServerCert TODO
-	if err != nil {
-		fmt.Printf("error in reading certificate: %v", err)
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+func fileExists(filePath string) (bool, error) {
+	if _, err := os.Stat(filePath); err == nil {
+		// path/to/whatever exists
+		return true, nil
 
-	// config.ClientCert, config.CryptoKey TODO
-	cert, err := tls.LoadX509KeyPair("./keys/client_cert.pem", "./keys/client_privatekey.pem")
+	} else if errors.Is(err, os.ErrNotExist) {
+		// path/to/whatever does *not* exist
+		return false, nil
+
+	} else {
+		// Schrodinger: file may or may not exist. See err for details.
+
+		// Therefore, do *NOT* use !os.IsNotExist(err) to test for file existence
+		return false, err
+
+	}
+}
+
+type keysPath struct {
+	cert       string
+	privateKey string
+}
+
+func MustInitCerts() keysPath {
+	existsDir, err := fileExists("./keys/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !existsDir {
+		err := os.Mkdir("./keys/", 0777)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	pathToClientCert := "./keys/client_cert.pem"
+	pathToClientPrivateKey := "./keys/client_privatekey.pem"
+
+	existsCertFile, err := fileExists(pathToClientCert)
+	if err != nil {
+		log.Fatal(err)
+	}
+	existsClientPrivateKey, err := fileExists(pathToClientPrivateKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !existsCertFile || !existsClientPrivateKey {
+		if existsCertFile {
+			err := os.Remove(pathToClientCert)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		if existsClientPrivateKey {
+			err := os.Remove(pathToClientPrivateKey)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		cert.MustGenCert("client")
+	}
+	return keysPath{cert: pathToClientCert, privateKey: pathToClientPrivateKey}
+}
+
+func main() {
+	keyPaths := MustInitCerts()
+
+	cert, err := tls.LoadX509KeyPair(keyPaths.cert, keyPaths.privateKey)
 	if err != nil {
 		fmt.Printf("error in loading key pair: %v", err)
+		log.Fatal(err)
 	}
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			RootCAs:      caCertPool,
+			InsecureSkipVerify: os.Getenv("DEBUG_RUN_INSECURE") == "true",
+			//RootCAs:      caCertPool,
 			Certificates: []tls.Certificate{cert},
 		},
 	}
@@ -149,6 +211,7 @@ func main() {
 
 	switch ctx.Command() {
 	case "register":
+		log.Println("---", cli.Register.SignIn)
 		AssertNoError(userService.Register(cli.Register.Name, cli.Register.Login,
 			cli.Register.MasterPassword, cli.Register.SignIn))
 	case "login":
