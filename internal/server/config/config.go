@@ -22,7 +22,7 @@ type Config struct {
 	DBName     string `envconfig:"DATABASE_NAME" default:"postgres"`
 
 	MinioEndPoint        string `envconfig:"MINIO_ENDPOINT" default:"localhost:9000"`
-	JwtSignKey           string `envconfig:"JWT_SIGNKEY" required:"true"`
+	SignKey              string `envconfig:"SIGNKEY" required:"true"`
 	MinioAccessKeyID     string `envconfig:"ACCESS_KEYID" required:"true"`
 	MinioSecretAccessKey string `envconfig:"SECRET_ACCESSKEY" required:"true"`
 	UseSSL               bool   `envconfig:"USE_SSL" default:"false"`

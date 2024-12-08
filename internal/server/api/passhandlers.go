@@ -8,21 +8,22 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/adettelle/go-keeper/internal/encryption"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/internal/server/config"
 )
 
 type PassHandlers struct {
-	PwdRepo    IPwdRepo
-	JwtSignKey []byte
-	Config     *config.Config
+	PwdRepo IPwdRepo
+	SignKey []byte
+	Config  *config.Config
 }
 
-func NewPassHandlers(pwdRepo IPwdRepo, jwtSignKey []byte, cfg *config.Config) *PassHandlers {
+func NewPassHandlers(pwdRepo IPwdRepo, signKey []byte, cfg *config.Config) *PassHandlers {
 	return &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: jwtSignKey,
-		Config:     cfg,
+		PwdRepo: pwdRepo,
+		SignKey: signKey,
+		Config:  cfg,
 	}
 }
 
@@ -125,8 +126,15 @@ func (ph *PassHandlers) PasswordCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	encryptedPass, err := encryption.AESEncrypt(pwd.Password, ph.SignKey)
+	if err != nil {
+		log.Println("error in encrypting password:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	err = ph.PwdRepo.CreatePassword(
-		context.Background(), pwd.Password, pwd.Title, pwd.Description, userLogin)
+		context.Background(), encryptedPass, pwd.Title, pwd.Description, userLogin)
 	if err != nil {
 		log.Println("error in adding password:", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -171,7 +179,14 @@ func (ph *PassHandlers) PasswordUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ph.PwdRepo.UpdatePassword(context.Background(), title, pwd.Password, pwd.Description, custID)
+	encryptedPass, err := encryption.AESEncrypt(*pwd.Password, ph.SignKey)
+	if err != nil {
+		log.Println("error in encrypting password:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = ph.PwdRepo.UpdatePassword(context.Background(), title, &encryptedPass, pwd.Description, custID)
 	if err != nil {
 		log.Println("error in updating password:", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -215,12 +230,20 @@ func (ph *PassHandlers) PasswordByTitle(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	if pwd == "" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	_, err = w.Write([]byte(pwd))
+	decryptedPass, err := encryption.AESDecrypt(pwd, ph.SignKey)
+	if err != nil {
+		log.Println("error in decrypting password:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write([]byte(decryptedPass))
 	if err != nil {
 		log.Println("error in writing resp:", err)
 		w.WriteHeader(http.StatusInternalServerError)

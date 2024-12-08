@@ -18,7 +18,7 @@ type JwtChecker interface {
 // AuthMwr is middleware that adds user authentication to an HTTP handler.
 // It validates JWT tokens and attaches user information to the request headers.
 // It returns a new HTTP handler function that includes authentication logic.
-func AuthMwr(h http.HandlerFunc, jwtSignKey []byte, jwtChecker JwtChecker) http.HandlerFunc {
+func AuthMwr(h http.HandlerFunc, signKey []byte, jwtChecker JwtChecker) http.HandlerFunc {
 	authFn := func(w http.ResponseWriter, r *http.Request) {
 		// Extract the Authorization header (expected format: 'Bearer {jwt}').
 		authHeaderValue := r.Header.Get("Authorization")
@@ -35,7 +35,7 @@ func AuthMwr(h http.HandlerFunc, jwtSignKey []byte, jwtChecker JwtChecker) http.
 		}
 
 		// Verify the JWT token using the provided signing key.
-		cust, ok := jwt.VerifyToken(jwtSignKey, bearerToken[1])
+		cust, ok := jwt.VerifyToken(signKey, bearerToken[1])
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			return

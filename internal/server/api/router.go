@@ -16,7 +16,7 @@ func NewRouter(handlers *CustomerHandlers, cardHandlers *CardHandlers, passHandl
 
 	// withAuth wraps a given HTTP handler with authentication middleware.
 	withAuth := func(h http.HandlerFunc) http.HandlerFunc {
-		return mware.AuthMwr(h, handlers.JwtSignKey, jwtChecker)
+		return mware.AuthMwr(h, handlers.SignKey, jwtChecker)
 	}
 
 	// User authentication routes

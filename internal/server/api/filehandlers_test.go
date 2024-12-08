@@ -53,7 +53,7 @@ func TestFileAdd(t *testing.T) {
 	h := &FileHandlers{
 		FileRepo:     fileRepo,
 		MinioService: minioService,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -107,7 +107,7 @@ func TestFileAddFailure(t *testing.T) {
 	h := &FileHandlers{
 		FileRepo:     fileRepo,
 		MinioService: minioService,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -161,8 +161,8 @@ func TestAllFiles(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &FileHandlers{
-		FileRepo:   fileRepo,
-		JwtSignKey: []byte("my_key"),
+		FileRepo: fileRepo,
+		SignKey:  []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -225,8 +225,8 @@ func TestAllFilesFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &FileHandlers{
-		FileRepo:   fileRepo,
-		JwtSignKey: []byte("my_key"),
+		FileRepo: fileRepo,
+		SignKey:  []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -262,7 +262,7 @@ func TestFileByTitle(t *testing.T) {
 	h := &FileHandlers{
 		FileRepo:     fileRepo,
 		MinioService: minioService,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -306,7 +306,7 @@ func TestFileByTitleInvalidTitle(t *testing.T) {
 	h := &FileHandlers{
 		FileRepo:     fileRepo,
 		MinioService: minioService,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -344,8 +344,8 @@ func TestFIleDelete(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &FileHandlers{
-		FileRepo:   fileRepo,
-		JwtSignKey: []byte("my_key"),
+		FileRepo: fileRepo,
+		SignKey:  []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -379,8 +379,8 @@ func TestFileUpdate(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &FileHandlers{
-		FileRepo:   fileRepo,
-		JwtSignKey: []byte("my_key"),
+		FileRepo: fileRepo,
+		SignKey:  []byte("my_key"),
 	}
 
 	login := "Ane"
@@ -423,8 +423,8 @@ func TestFileUpdateFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &FileHandlers{
-		FileRepo:   fileRepo,
-		JwtSignKey: []byte("my_key"),
+		FileRepo: fileRepo,
+		SignKey:  []byte("my_key"),
 	}
 
 	login := "Ane"

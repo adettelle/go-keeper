@@ -28,7 +28,7 @@ func TestRegisterCustomer(t *testing.T) {
 	// создаём объект-заглушку
 	h := &CustomerHandlers{
 		CustomerRepo: custRepo,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	cust1 := CustomerRegistrationRequestDTO{
@@ -67,7 +67,7 @@ func TestRegisterCustomerAddingExistingUser(t *testing.T) {
 	// создаём объект-заглушку
 	h := &CustomerHandlers{
 		CustomerRepo: custRepo,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	cust1 := CustomerRegistrationRequestDTO{
@@ -110,7 +110,7 @@ func TestLogin(t *testing.T) {
 	h := &CustomerHandlers{
 		CustomerRepo: custRepo,
 		JwtRepo:      jwtRepo,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	auth := authRequestDTO{
@@ -138,7 +138,7 @@ func TestLogin(t *testing.T) {
 	require.Len(t, bearerToken, 2)
 	require.Equal(t, bearerToken[0], "Bearer")
 
-	cust, ok := jwt.VerifyToken(h.JwtSignKey, bearerToken[1])
+	cust, ok := jwt.VerifyToken(h.SignKey, bearerToken[1])
 	require.True(t, ok)
 	require.Equal(t, cust.ID, 1000)
 	require.Equal(t, cust.Login, auth.Login)
@@ -155,7 +155,7 @@ func TestLoginFailure(t *testing.T) {
 	h := &CustomerHandlers{
 		CustomerRepo: custRepo,
 		JwtRepo:      jwtRepo,
-		JwtSignKey:   []byte("my_key"),
+		SignKey:      []byte("my_key"),
 	}
 
 	auth := authRequestDTO{

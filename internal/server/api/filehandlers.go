@@ -18,17 +18,17 @@ import (
 type FileHandlers struct {
 	FileRepo     IFileRepo
 	MinioService IMinioService
-	JwtSignKey   []byte
+	SignKey      []byte
 	Config       *config.Config
 }
 
 func NewFileHandlers(fileRepo IFileRepo, minioService IMinioService,
-	jwtSignKey []byte, cfg *config.Config) *FileHandlers {
+	signKey []byte, cfg *config.Config) *FileHandlers {
 
 	return &FileHandlers{
 		FileRepo:     fileRepo,
 		MinioService: minioService,
-		JwtSignKey:   jwtSignKey,
+		SignKey:      signKey,
 		Config:       cfg,
 	}
 }

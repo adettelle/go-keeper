@@ -18,7 +18,7 @@ import (
 
 func Test(t *testing.T) {
 	cfg := &config.Config{
-		JwtSignKey:           "my_secret_key",
+		SignKey:              "my_super_secret_password123",
 		MinioAccessKeyID:     "AAAAAAAAAAAAAAAAAAAA",
 		MinioSecretAccessKey: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 		DBPort:               "5433",
@@ -202,7 +202,7 @@ func Test(t *testing.T) {
 
 	expectedCard2 := client.CardToGetByTitle{
 		Num:         cardToAdd.Num,
-		Expire:      cardToAdd.Expire,
+		Expire:      cardToUpdate.Expire,
 		Cvc:         cardToAdd.Cvc,
 		Description: cardToUpdate.Description,
 	}

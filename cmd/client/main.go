@@ -211,7 +211,6 @@ func main() {
 
 	switch ctx.Command() {
 	case "register":
-		log.Println("---", cli.Register.SignIn)
 		AssertNoError(userService.Register(cli.Register.Name, cli.Register.Login,
 			cli.Register.MasterPassword, cli.Register.SignIn))
 	case "login":

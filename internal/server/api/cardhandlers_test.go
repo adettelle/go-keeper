@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/adettelle/go-keeper/internal/encryption"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/mocks"
 	"github.com/carlmjohnson/requests"
@@ -27,8 +28,8 @@ func TestCardAdd(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -41,7 +42,13 @@ func TestCardAdd(t *testing.T) {
 		Title:       "bank1",
 		Description: "card for bank1",
 	}
-	cardRepo.EXPECT().AddCard(gomock.Any(), card.Num, card.Expire, card.Cvc,
+	encryptedNum, err := encryption.AESEncrypt(card.Num, h.SignKey)
+	require.NoError(t, err)
+	encryptedExpire, err := encryption.AESEncrypt(card.Expire, h.SignKey)
+	require.NoError(t, err)
+	encryptedCvc, err := encryption.AESEncrypt(card.Cvc, h.SignKey)
+	require.NoError(t, err)
+	cardRepo.EXPECT().AddCard(gomock.Any(), encryptedNum, encryptedExpire, encryptedCvc,
 		card.Title, card.Description, login).Return(nil)
 
 	request, err := requests.
@@ -70,8 +77,8 @@ func TestCardAddFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -84,7 +91,14 @@ func TestCardAddFailure(t *testing.T) {
 		Title:       "bank1",
 		Description: "card for bank1",
 	}
-	cardRepo.EXPECT().AddCard(gomock.Any(), card.Num, card.Expire, card.Cvc,
+	encryptedNum, err := encryption.AESEncrypt(card.Num, h.SignKey)
+	require.NoError(t, err)
+	encryptedExpire, err := encryption.AESEncrypt(card.Expire, h.SignKey)
+	require.NoError(t, err)
+	encryptedCvc, err := encryption.AESEncrypt(card.Cvc, h.SignKey)
+	require.NoError(t, err)
+
+	cardRepo.EXPECT().AddCard(gomock.Any(), encryptedNum, encryptedExpire, encryptedCvc,
 		card.Title, card.Description, login).Return(fmt.Errorf("error in DB"))
 
 	request, err := requests.
@@ -113,8 +127,8 @@ func TestAllCards(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -168,8 +182,8 @@ func TestAllCardsFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -202,8 +216,8 @@ func TestCardByTitle(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -218,6 +232,16 @@ func TestCardByTitle(t *testing.T) {
 	}
 
 	cardRepo.EXPECT().GetCardByTitle(gomock.Any(), "title1", login).Return(&card, nil)
+
+	encryptedNum, err := encryption.AESEncrypt(card.Num, h.SignKey)
+	require.NoError(t, err)
+	encryptedExpire, err := encryption.AESEncrypt(card.Expire, h.SignKey)
+	require.NoError(t, err)
+	encryptedCvc, err := encryption.AESEncrypt(card.Cvc, h.SignKey)
+	require.NoError(t, err)
+	card.Num = encryptedNum
+	card.Expire = encryptedExpire
+	card.Cvc = encryptedCvc
 
 	request, err := requests.
 		URL("/api/user/card/title1").
@@ -254,8 +278,8 @@ func TestCardByTitleFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -289,8 +313,8 @@ func TestCardByTitleInvalidTitle(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -334,8 +358,8 @@ func TestCardUpdate(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -353,9 +377,15 @@ func TestCardUpdate(t *testing.T) {
 		Cvc:         &cvc,
 		Description: &description,
 	}
+	encryptedNum, err := encryption.AESEncrypt(*card.Num, h.SignKey)
+	require.NoError(t, err)
+	encryptedExpire, err := encryption.AESEncrypt(*card.Expire, h.SignKey)
+	require.NoError(t, err)
+	encryptedCvc, err := encryption.AESEncrypt(*card.Cvc, h.SignKey)
+	require.NoError(t, err)
 
-	cardRepo.EXPECT().UpdateCard(gomock.Any(), title, card.Num, card.Expire,
-		card.Cvc, card.Description, userID).Return(nil)
+	cardRepo.EXPECT().UpdateCard(gomock.Any(), title, &encryptedNum, &encryptedExpire,
+		&encryptedCvc, card.Description, userID).Return(nil)
 
 	request, err := requests.
 		URL("/api/user/card/update/"+title).
@@ -383,8 +413,8 @@ func TestCardUpdateFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -402,9 +432,15 @@ func TestCardUpdateFailure(t *testing.T) {
 		Cvc:         &cvc,
 		Description: &description,
 	}
+	encryptedNum, err := encryption.AESEncrypt(*card.Num, h.SignKey)
+	require.NoError(t, err)
+	encryptedExpire, err := encryption.AESEncrypt(*card.Expire, h.SignKey)
+	require.NoError(t, err)
+	encryptedCvc, err := encryption.AESEncrypt(*card.Cvc, h.SignKey)
+	require.NoError(t, err)
 
-	cardRepo.EXPECT().UpdateCard(gomock.Any(), title, card.Num, card.Expire,
-		card.Cvc, card.Description, userID).Return(fmt.Errorf("DB error"))
+	cardRepo.EXPECT().UpdateCard(gomock.Any(), title, &encryptedNum, &encryptedExpire,
+		&encryptedCvc, card.Description, userID).Return(fmt.Errorf("DB error"))
 
 	request, err := requests.
 		URL("/api/user/card/update/"+title).
@@ -433,8 +469,8 @@ func TestCardDelete(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -468,8 +504,8 @@ func TestCardDeleteFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: []byte("my_key"),
+		CardRepo: cardRepo,
+		SignKey:  []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"

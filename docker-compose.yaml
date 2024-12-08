@@ -12,7 +12,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - JWT_SIGNKEY=my_secret_key
+      - SIGNKEY=my_secret_key
       # - ACCESS_KEYID=RPClJMVJmUJyRF2PgZSK
       # - SECRET_ACCESSKEY=qJa8Bl0VHixgkDoymsJC7yEgb88nPTUQsZNLPUBM
       - ACCESS_KEYID=AAAAAAAAAAAAAAAAAAAA

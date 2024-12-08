@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/adettelle/go-keeper/internal/encryption"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/mocks"
 	"github.com/carlmjohnson/requests"
@@ -28,8 +29,8 @@ func TestPasswordCreate(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -40,7 +41,9 @@ func TestPasswordCreate(t *testing.T) {
 		Title:       "vk_pass",
 		Description: "pass for vk",
 	}
-	pwdRepo.EXPECT().CreatePassword(gomock.Any(), pwd.Password,
+	encryptedPass, err := encryption.AESEncrypt(pwd.Password, h.SignKey)
+	require.NoError(t, err)
+	pwdRepo.EXPECT().CreatePassword(gomock.Any(), encryptedPass,
 		pwd.Title, pwd.Description, login).Return(nil)
 
 	request, err := requests.
@@ -68,8 +71,8 @@ func TestPasswordCreateFailure(t *testing.T) {
 
 	// создаём объект-заглушку
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -80,7 +83,9 @@ func TestPasswordCreateFailure(t *testing.T) {
 		Title:       "vk_pass",
 		Description: "pass for vk",
 	}
-	pwdRepo.EXPECT().CreatePassword(gomock.Any(), pwd.Password,
+	encryptedPass, err := encryption.AESEncrypt(pwd.Password, h.SignKey)
+	require.NoError(t, err)
+	pwdRepo.EXPECT().CreatePassword(gomock.Any(), encryptedPass,
 		pwd.Title, pwd.Description, login).Return(fmt.Errorf("DB error"))
 
 	request, err := requests.
@@ -107,8 +112,8 @@ func TestAllPasswords(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -158,8 +163,8 @@ func TestAllPasswordsFailure(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -191,14 +196,17 @@ func TestPasswordByTitle(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
 	userID := 123
 
-	pwdRepo.EXPECT().GetPasswordByTitle(gomock.Any(), "title1", login).Return("correct_password", nil)
+	encryptedPass, err := encryption.AESEncrypt("correct_password", h.SignKey)
+	require.NoError(t, err)
+
+	pwdRepo.EXPECT().GetPasswordByTitle(gomock.Any(), "title1", login).Return(encryptedPass, nil)
 
 	request, err := requests.
 		URL("/api/user/password/title1").
@@ -229,8 +237,8 @@ func TestPasswordByTitleFailure(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -263,8 +271,8 @@ func TestPasswordByTitleInvalidTitle(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -302,8 +310,8 @@ func TestPasswordUpdate(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -317,8 +325,9 @@ func TestPasswordUpdate(t *testing.T) {
 		Password:    &password,
 		Description: &description,
 	}
-
-	pwdRepo.EXPECT().UpdatePassword(gomock.Any(), title, pwd.Password, pwd.Description, userID).Return(nil)
+	encryptedPass, err := encryption.AESEncrypt(*pwd.Password, h.SignKey)
+	require.NoError(t, err)
+	pwdRepo.EXPECT().UpdatePassword(gomock.Any(), title, &encryptedPass, pwd.Description, userID).Return(nil)
 
 	request, err := requests.
 		URL("/api/user/password/update/"+title).
@@ -347,8 +356,8 @@ func TestPasswordUpdateFailure(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -360,8 +369,9 @@ func TestPasswordUpdateFailure(t *testing.T) {
 		Password:    &password,
 		Description: &description,
 	}
-
-	pwdRepo.EXPECT().UpdatePassword(gomock.Any(), "title1", pwd.Password,
+	encryptedPass, err := encryption.AESEncrypt(*pwd.Password, h.SignKey)
+	require.NoError(t, err)
+	pwdRepo.EXPECT().UpdatePassword(gomock.Any(), "title1", &encryptedPass,
 		pwd.Description, userID).Return(fmt.Errorf("Update repo fail"))
 
 	request, err := requests.
@@ -391,8 +401,8 @@ func TestPasswordDelete(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"
@@ -426,8 +436,8 @@ func TestPasswordDeleteFailure(t *testing.T) {
 	pwdRepo := mocks.NewMockIPwdRepo(ctrl)
 
 	h := &PassHandlers{
-		PwdRepo:    pwdRepo,
-		JwtSignKey: []byte("my_key"),
+		PwdRepo: pwdRepo,
+		SignKey: []byte("my_super_secret_key"),
 	}
 
 	login := "Ane"

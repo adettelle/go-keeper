@@ -17,7 +17,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func main() {
+func main() { // TODO проверить, что длина jwtkey > 16!!!!!!!
 	cfg, err := config.New()
 	if err != nil {
 		log.Println("error in config")
@@ -68,11 +68,11 @@ func initializeServer(cfg *config.Config) (*http.Server, error) {
 	}
 	fmt.Println("Starting minio service")
 
-	handlers := api.NewCustomerHandlers(customerRepo, jwtRepo, []byte(cfg.JwtSignKey), cfg)
+	handlers := api.NewCustomerHandlers(customerRepo, jwtRepo, []byte(cfg.SignKey), cfg)
 
-	cardHandlers := api.NewCardHandlers(cardRepo, []byte(cfg.JwtSignKey), cfg)
-	passHandlers := api.NewPassHandlers(pwdRepo, []byte(cfg.JwtSignKey), cfg)
-	fileHandlers := api.NewFileHandlers(fileRepo, minioService, []byte(cfg.JwtSignKey), cfg)
+	cardHandlers := api.NewCardHandlers(cardRepo, []byte(cfg.SignKey), cfg)
+	passHandlers := api.NewPassHandlers(pwdRepo, []byte(cfg.SignKey), cfg)
+	fileHandlers := api.NewFileHandlers(fileRepo, minioService, []byte(cfg.SignKey), cfg)
 
 	address := cfg.Address
 	fmt.Println("Starting server at address:", address)

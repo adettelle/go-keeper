@@ -33,18 +33,18 @@ type IMinioService interface {
 type CustomerHandlers struct {
 	CustomerRepo ICustomerRepo
 	JwtRepo      IJwtRepo
-	JwtSignKey   []byte
+	SignKey      []byte
 	Config       *config.Config
 }
 
 func NewCustomerHandlers(
 	customerRepo ICustomerRepo,
 	jwtRepo IJwtRepo,
-	jwtSignKey []byte, cfg *config.Config) *CustomerHandlers {
+	signKey []byte, cfg *config.Config) *CustomerHandlers {
 	return &CustomerHandlers{
 		CustomerRepo: customerRepo,
 		JwtRepo:      jwtRepo,
-		JwtSignKey:   jwtSignKey,
+		SignKey:      signKey,
 		Config:       cfg,
 	}
 }
@@ -85,7 +85,7 @@ func (ch *CustomerHandlers) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := jwt.GenerateJwtToken(ch.JwtSignKey, auth.Login, custID)
+	token, err := jwt.GenerateJwtToken(ch.SignKey, auth.Login, custID)
 	if err != nil {
 		log.Println("error in generating token:", err)
 		w.WriteHeader(http.StatusInternalServerError)

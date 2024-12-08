@@ -9,22 +9,23 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/adettelle/go-keeper/internal/encryption"
 	"github.com/adettelle/go-keeper/internal/repo"
 	"github.com/adettelle/go-keeper/internal/server/config"
 	"github.com/go-playground/validator/v10"
 )
 
 type CardHandlers struct {
-	CardRepo   ICardRepo
-	JwtSignKey []byte
-	Config     *config.Config
+	CardRepo ICardRepo
+	SignKey  []byte
+	Config   *config.Config
 }
 
-func NewCardHandlers(cardRepo ICardRepo, jwtSignKey []byte, cfg *config.Config) *CardHandlers {
+func NewCardHandlers(cardRepo ICardRepo, signKey []byte, cfg *config.Config) *CardHandlers {
 	return &CardHandlers{
-		CardRepo:   cardRepo,
-		JwtSignKey: jwtSignKey,
-		Config:     cfg,
+		CardRepo: cardRepo,
+		SignKey:  signKey,
+		Config:   cfg,
 	}
 }
 
@@ -80,8 +81,28 @@ func (ch *CardHandlers) CardAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ch.CardRepo.AddCard(
-		context.Background(), card.Num, card.Expire, card.Cvc, card.Title, card.Description, userLogin)
+	encryptedNum, err := encryption.AESEncrypt(card.Num, ch.SignKey)
+	if err != nil {
+		log.Println("error in encrypting card number:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	encryptedExpire, err := encryption.AESEncrypt(card.Expire, ch.SignKey)
+	if err != nil {
+		log.Println("error in encrypting card expire date:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	encryptedCvc, err := encryption.AESEncrypt(card.Cvc, ch.SignKey)
+	if err != nil {
+		log.Println("error in encrypting card cvc:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = ch.CardRepo.AddCard(context.Background(), encryptedNum, encryptedExpire, encryptedCvc,
+		card.Title, card.Description, userLogin)
+
 	if err != nil {
 		log.Println("error in adding card:", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -186,6 +207,28 @@ func (ch *CardHandlers) CardGetByTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	decryptedNum, err := encryption.AESDecrypt(card.Num, ch.SignKey)
+	if err != nil {
+		log.Println("error in decrypting card number:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	decryptedExpire, err := encryption.AESDecrypt(card.Expire, ch.SignKey)
+	if err != nil {
+		log.Println("error in decrypting card expires date:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	decryptedCvc, err := encryption.AESDecrypt(card.Cvc, ch.SignKey)
+	if err != nil {
+		log.Println("error in decrypting card cvc:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	card.Num = decryptedNum // TODO ????
+	card.Expire = decryptedExpire
+	card.Cvc = decryptedCvc
+
 	resp, err := json.Marshal(NewCardGetByTitleDTO(*card))
 	if err != nil {
 		log.Println("error in marshalling json:", err)
@@ -247,9 +290,37 @@ func (ch *CardHandlers) CardUpdate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	var encryptedNum, encryptedExpire, encryptedCvc *string
+	if card.Num != nil {
+		res, err := encryption.AESEncrypt(*card.Num, ch.SignKey)
+		if err != nil {
+			log.Println("error in encrypting card number:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		encryptedNum = &res
+	}
+	if card.Expire != nil {
+		res, err := encryption.AESEncrypt(*card.Expire, ch.SignKey)
+		if err != nil {
+			log.Println("error in encrypting card expires date:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		encryptedExpire = &res
+	}
+	if card.Cvc != nil {
+		res, err := encryption.AESEncrypt(*card.Cvc, ch.SignKey)
+		if err != nil {
+			log.Println("error in encrypting card cvc:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		encryptedCvc = &res
+	}
 
-	err = ch.CardRepo.UpdateCard(context.Background(), title, card.Num, card.Expire,
-		card.Cvc, card.Description, custID)
+	err = ch.CardRepo.UpdateCard(context.Background(), title, encryptedNum, encryptedExpire,
+		encryptedCvc, card.Description, custID) // card.Num, card.Expire, card.Cvc
 	if err != nil {
 		log.Println("error in updating card:", err)
 		w.WriteHeader(http.StatusInternalServerError)

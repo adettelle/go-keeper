@@ -102,9 +102,6 @@ func (fs *FileService) AddFile(fileName, title, description string) error {
 	if err != nil {
 		return err
 	}
-	// log.Println("------------", fileStat.Size())
-	// mtype, err := mimetype.DetectFile("/path/to/file")
-	// fmt.Println(mtype.String(), mtype.Extension())
 
 	err = requests.
 		URL("/api/user/file").
