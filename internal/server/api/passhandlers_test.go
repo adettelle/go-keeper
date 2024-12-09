@@ -134,7 +134,7 @@ func TestAllPasswords(t *testing.T) {
 	request, err := requests.
 		URL("/api/user/passwords").
 		Method(http.MethodGet).
-		Header("x-user", login). // TOD HELP разве здесь не  должна быть структура, в которую падает get результат?
+		Header("x-user", login).
 		Header("x-user-id", strconv.Itoa(userID)).
 		Request(context.Background())
 	require.NoError(t, err)

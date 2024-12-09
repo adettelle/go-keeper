@@ -225,7 +225,7 @@ func (ch *CardHandlers) CardGetByTitle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	card.Num = decryptedNum // TODO ????
+	card.Num = decryptedNum
 	card.Expire = decryptedExpire
 	card.Cvc = decryptedCvc
 

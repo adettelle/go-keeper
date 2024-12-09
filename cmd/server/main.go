@@ -17,7 +17,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func main() { // TODO проверить, что длина jwtkey > 16!!!!!!!
+func main() {
 	cfg, err := config.New()
 	if err != nil {
 		log.Println("error in config")
